@@ -1,0 +1,13 @@
+{
+    "appearance": {
+        "transparency": {
+            "enabled": false
+        }
+    },
+    "background": {
+        "wallpaperEnabled": true
+    },
+    "paths": {
+        "wallpaperDir": "~/pix/wall"
+    }
+}

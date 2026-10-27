@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$HOME"
+export CAELESTIA_WALLPAPERS_DIR="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}"
+
+stop_engines() {
+    awww kill 2>/dev/null || true
+    pkill -x mpvpaper 2>/dev/null || true
+    local tries=0
+    while pgrep -x mpvpaper >/dev/null 2>&1 && [[ $tries -lt 20 ]]; do
+        sleep 0.05
+        tries=$((tries + 1))
+    done
+    if pgrep -x mpvpaper >/dev/null 2>&1; then
+        pkill -9 -x mpvpaper 2>/dev/null || true
+    fi
+}
+
+is_caelestia_running() {
+    qs list -c caelestia 2>/dev/null | grep -q "^Instance "
+}
+
+restart_caelestia_shell() {
+    # Find only the instance(s) matching caelestia shell
+    local instances
+    instances=$(qs list -c caelestia 2>/dev/null | awk '/^Instance / { id=$2; sub(/:$/, "", id); print id }')
+    for inst in $instances; do
+        qs kill -i "$inst" 2>/dev/null || true
+    done
+
+    # Ensure previous instances are gone before relaunching without arbitrary long sleeps
+    local tries=0
+    while qs list -c caelestia 2>/dev/null | grep -q "^Instance " && [[ $tries -lt 30 ]]; do
+        sleep 0.1
+        tries=$((tries + 1))
+    done
+
+    # In case any stuck process remains with config caelestia, terminate gracefully
+    if qs list -c caelestia 2>/dev/null | grep -q "^Instance "; then
+        pkill -TERM -f "qs.*-c caelestia" 2>/dev/null || true
+        pkill -TERM -f "qs.*caelestia/shell.qml" 2>/dev/null || true
+        sleep 0.2
+    fi
+
+    # Relaunch single user shell instance using caelestia shell -d (enforces -n)
+    caelestia shell -d
+}
+
+set_caelestia_wallpaper() {
+    local enabled="$1"
+    # Update shell.json so persistent config is always in sync
+    python - "$HOME/.config/caelestia/shell.json" "$enabled" <<'PY'
+import json
+import sys
+
+path, enabled = sys.argv[1], sys.argv[2] == "true"
+try:
+    with open(path) as f:
+        config = json.load(f)
+except Exception:
+    config = {}
+config.setdefault("background", {})["wallpaperEnabled"] = enabled
+with open(path, "w") as f:
+    json.dump(config, f, indent=4)
+    f.write("\n")
+PY
+
+    # Send IPC to quickshell if running
+    if is_caelestia_running; then
+        if [[ "$enabled" == "true" ]]; then
+            qs ipc -c caelestia call wallpaper enable >/dev/null 2>&1 || true
+        else
+            qs ipc -c caelestia call wallpaper disable >/dev/null 2>&1 || true
+        fi
+    else
+        # Fallback: only launch if not running, using caelestia shell -d (enforces -n)
+        caelestia shell -d
+    fi
+}
+
+usage() {
+    echo "Usage: wallpaper static <image> | gif <animation.gif> | video <video.mp4> | random | stop | stop-engines | restart-shell"
+}
+
+case "${1:-}" in
+    static)
+        [[ $# -eq 2 && -f "$2" ]] || { usage; exit 1; }
+        stop_engines
+        caelestia wallpaper -f "$2"
+        set_caelestia_wallpaper true
+        ;;
+    random)
+        stop_engines
+        caelestia wallpaper -r
+        set_caelestia_wallpaper true
+        ;;
+    gif)
+        [[ $# -eq 2 && -f "$2" ]] || { usage; exit 1; }
+        stop_engines
+        set_caelestia_wallpaper false
+        awww-daemon &
+        sleep 1
+        awww img "$2"
+        ;;
+    video)
+        [[ $# -eq 2 && -f "$2" ]] || { usage; exit 1; }
+        stop_engines
+        set_caelestia_wallpaper false
+        nohup mpvpaper -o "no-audio loop" eDP-1 "$2" >/tmp/mpvpaper.log 2>&1 </dev/null &
+        ;;
+    stop)
+        stop_engines
+        set_caelestia_wallpaper false
+        ;;
+    stop-engines)
+        stop_engines
+        ;;
+    restart-shell)
+        restart_caelestia_shell
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
