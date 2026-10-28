@@ -39,6 +39,8 @@ Searcher {
     function setWallpaper(path: string): void {
         actualCurrent = path;
         GlobalConfig.background.wallpaperEnabled = true;
+        if (Colours.scheme === "dynamic")
+            previewColourLock = true;
         Quickshell.execDetached(["/home/sidlakhani/.local/bin/wallpaper", "static", path]);
     }
 
@@ -152,10 +154,12 @@ Searcher {
             }
             root.actualCurrent = wall;
             root.previewColourLock = false;
+            Colours.reloadScheme();
         }
         onLoadFailed: {
             root.actualCurrent = root.fallback;
             root.previewColourLock = false;
+            Colours.reloadScheme();
             Quickshell.execDetached(["caelestia", "wallpaper", "-f", root.fallback, ...root.smartArg]);
         }
     }
@@ -172,7 +176,7 @@ Searcher {
     Process {
         id: getPreviewColoursProc
 
-        command: ["caelestia", "wallpaper", "-p", root.previewPath, ...root.smartArg]
+        command: ["/home/sidlakhani/.local/bin/wallpaper", "preview", root.previewPath]
         stdout: StdioCollector {
             onStreamFinished: {
                 Colours.load(text, true);
