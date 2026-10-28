@@ -102,11 +102,11 @@ Item {
                 const hasAlt = (event.modifiers & Qt.AltModifier);
 
                 if (isOnlyWallpaper || hasCtrl || hasAlt) {
-                    if (event.key === Qt.Key_A || (hasCtrl && event.key === Qt.Key_1)) {
+                    if (event.key === Qt.Key_I || (hasCtrl && event.key === Qt.Key_1)) {
                         list.currentList.selectedTab = 0;
                         event.accepted = true;
                         return;
-                    } else if (event.key === Qt.Key_I || (hasCtrl && event.key === Qt.Key_2)) {
+                    } else if (event.key === Qt.Key_S || (hasCtrl && event.key === Qt.Key_2)) {
                         list.currentList.selectedTab = 1;
                         event.accepted = true;
                         return;

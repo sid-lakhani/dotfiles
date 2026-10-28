@@ -9,5 +9,9 @@
     },
     "paths": {
         "wallpaperDir": "~/pix/wall"
+    },
+    "services": {
+        "useFahrenheit": false,
+        "useFahrenheitPerformance": false
     }
 }

@@ -100,24 +100,13 @@ PageBase {
 
                 model: {
                     const walls = Wallpapers.list;
-                    const baseDir = Paths.wallsdir;
-                    const categories = {};
                     const list = [];
                     for (const w of walls) {
-                        if (w.path.includes("/animated/"))
+                        if (w.path.includes("/live/") || w.path.includes("/animated/") || w.path.includes("/solids/"))
                             continue;
-                        if (w.parentDir !== baseDir) {
-                            const category = Wallpapers.getCategoryFor(w);
-                            if (category === "animated")
-                                continue;
-                            if (category && (!(category in categories) || categories[category].name.localeCompare(w.name) > 0))
-                                categories[category] = w;
-                        } else {
-                            list.push(w);
-                        }
+                        list.push(w);
                     }
-                    list.push(...Object.values(categories));
-                    list.sort((a, b) => ((a.parentDir === baseDir) - (b.parentDir === baseDir)) || a.name.localeCompare(b.name));
+                    list.sort((a, b) => a.name.localeCompare(b.name));
                     while (list.length < Config.nexus.wallpapersPerRow)
                         list.push(null);
                     return list;
@@ -130,25 +119,53 @@ PageBase {
                     opacity: modelData ? 1 : 0
                     enabled: modelData
 
-                    source: String(modelData?.path ?? "")
-                    text: {
-                        if (!modelData)
-                            return "";
+                    readonly property string baseName: modelData ? modelData.name.replace(/\.[^.]+$/, "") : ""
+                    readonly property string cleanTitle: baseName.replace(/[-_.]/g, " ").replace(/\b\w/g, l => l.toUpperCase())
 
-                        if (modelData.parentDir !== Paths.wallsdir) {
-                            const category = Wallpapers.getCategoryFor(modelData);
-                            return category.slice(0, 1).toUpperCase() + category.slice(1);
-                        }
-                        return modelData.name;
-                    }
+                    Layout.fillWidth: true
+                    source: String(modelData?.path ?? "")
+                    text: cleanTitle || modelData?.name || ""
                     onClicked: {
-                        if (modelData.parentDir !== Paths.wallsdir) {
-                            root.nState.selectedWallpaperCategory = Wallpapers.getCategoryFor(modelData);
-                            root.nState.openSubPage(2); // Category page
-                        } else {
-                            Wallpapers.setWallpaper(modelData.path);
-                            root.nState.closeSubPage();
-                        }
+                        Wallpapers.setWallpaper(modelData.path);
+                        root.nState.closeSubPage();
+                    }
+                }
+            }
+        }
+
+        StyledText {
+            Layout.topMargin: Tokens.spacing.large
+            text: qsTr("Solids")
+            font: Tokens.font.title.small
+        }
+
+        FileSystemModel {
+            id: solidsModel
+            path: `${Paths.wallsdir}/solids`
+            filter: FileSystemModel.Images
+        }
+
+        GridLayout {
+            Layout.fillWidth: true
+            columns: Config.nexus.wallpapersPerRow
+            rowSpacing: Tokens.spacing.medium
+            columnSpacing: Tokens.spacing.large
+
+            Repeater {
+                model: solidsModel.entries
+
+                WallItem {
+                    required property FileSystemEntry modelData
+
+                    readonly property string baseName: modelData ? modelData.name.replace(/\.[^.]+$/, "") : ""
+                    readonly property string cleanTitle: baseName.replace(/[-_.]/g, " ").replace(/\b\w/g, l => l.toUpperCase())
+
+                    Layout.fillWidth: true
+                    source: String(modelData?.path ?? "")
+                    text: cleanTitle
+                    onClicked: {
+                        Wallpapers.setWallpaper(modelData.path);
+                        root.nState.closeSubPage();
                     }
                 }
             }
@@ -161,8 +178,8 @@ PageBase {
         }
 
         FileSystemModel {
-            id: animatedModel
-            path: `${Paths.wallsdir}/animated`
+            id: liveModel
+            path: `${Paths.wallsdir}/live`
             nameFilters: ["*.mp4", "*.mkv", "*.webm", "*.gif"]
         }
 
@@ -173,21 +190,25 @@ PageBase {
             columnSpacing: Tokens.spacing.large
 
             Repeater {
-                model: animatedModel.entries
+                model: liveModel.entries
 
                 WallItem {
                     required property FileSystemEntry modelData
 
                     readonly property bool isGif: modelData ? modelData.name.endsWith(".gif") : false
                     readonly property string baseName: modelData ? modelData.name.replace(/\.[^.]+$/, "") : ""
-                    readonly property string cleanTitle: baseName.replace(/[-_.]/g, " ").replace(/\b\w/g, l => l.toUpperCase())
+                    readonly property string cleanTitle: baseName
+                        .replace(/\.(1920x1080|3840x2160|2560x1440|1080p|4k|800)/gi, "")
+                        .replace(/[-_.]/g, " ")
+                        .replace(/\b\w/g, l => l.toUpperCase())
+                        .trim()
 
                     Layout.fillWidth: true
-                    source: isGif ? (modelData?.path ?? "") : `${Paths.wallsdir}/animated/.thumbnails/${baseName}.jpg`
-                    text: isGif ? `${cleanTitle} · GIF` : `${cleanTitle} · Video`
+                    source: isGif ? (modelData?.path ?? "") : `${Paths.wallsdir}/live/.thumbnails/${baseName}.jpg`
+                    text: cleanTitle
                     onClicked: {
                         Wallpapers.commitLive(
-                            isGif ? (modelData?.path ?? "") : `${Paths.wallsdir}/animated/.thumbnails/${baseName}.jpg`,
+                            isGif ? (modelData?.path ?? "") : `${Paths.wallsdir}/live/.thumbnails/${baseName}.jpg`,
                             modelData.path,
                             isGif
                         );

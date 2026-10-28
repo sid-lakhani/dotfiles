@@ -124,19 +124,21 @@ ensure_thumbnail() {
 }
 
 generate_all_thumbnails() {
-    local anim_dir="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}/animated"
-    mkdir -p "$anim_dir/.thumbnails"
-    for vid in "$anim_dir"/*.{mp4,mkv,webm}; do
+    local live_dir="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}/live"
+    [[ -d "$live_dir" ]] || live_dir="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}/animated"
+    mkdir -p "$live_dir/.thumbnails"
+    for vid in "$live_dir"/*.{mp4,mkv,webm}; do
         [[ -f "$vid" ]] || continue
         ensure_thumbnail "$vid"
     done
 }
 
 optimize_videos() {
-    local anim_dir="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}/animated"
-    mkdir -p "$anim_dir"
+    local live_dir="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}/live"
+    [[ -d "$live_dir" ]] || live_dir="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}/animated"
+    mkdir -p "$live_dir"
     echo "Inspecting animated wallpapers for display resolution optimization..."
-    for vid in "$anim_dir"/*.{mp4,mkv,webm}; do
+    for vid in "$live_dir"/*.{mp4,mkv,webm}; do
         [[ -f "$vid" ]] || continue
         local width
         width=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=noprint_wrappers=1:nokey=1 "$vid" 2>/dev/null || echo "")
@@ -155,7 +157,7 @@ optimize_videos() {
         fi
     done
     generate_all_thumbnails
-    echo "Optimization complete! Animated wallpapers are now native 1080p with minimal RAM footprint."
+    echo "Optimization complete! Live wallpapers are now native 1080p with minimal RAM footprint."
 }
 
 usage() {
