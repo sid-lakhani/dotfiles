@@ -164,6 +164,7 @@ Searcher {
         id: wallpapers
 
         recursive: true
+        watchChanges: true
         path: Paths.wallsdir
         filter: FileSystemModel.Images
     }

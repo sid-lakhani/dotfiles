@@ -4,6 +4,9 @@ hl.config({
     decoration = {
         rounding = vars.windowRounding,
 
+        dim_inactive = vars.dimInactive,
+        dim_strength = vars.dimStrength,
+
         blur = {
             enabled           = vars.blurEnabled,
             xray              = vars.blurXray,
@@ -17,10 +20,11 @@ hl.config({
         },
 
         shadow = {
-            enabled      = vars.shadowEnabled,
-            range        = vars.shadowRange,
-            render_power = vars.shadowRenderPower,
-            color        = vars.shadowColour,
+            enabled        = vars.shadowEnabled,
+            range          = vars.shadowRange,
+            render_power   = vars.shadowRenderPower,
+            color          = vars.shadowColour,
+            color_inactive = vars.shadowInactiveColour,
         },
     },
 })

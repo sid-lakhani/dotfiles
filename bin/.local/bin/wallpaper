@@ -70,8 +70,8 @@ set_wallpaper_mode() {
         enabled="false"
     fi
 
-    # Update shell.json so persistent config is always in sync
-    python - "$HOME/.config/caelestia/shell.json" "$enabled" <<'PY'
+    # Update shell.json only if wallpaperEnabled actually changed (prevents quickshell hot-reload)
+    python - "$HOME/.config/caelestia/shell.json" "$enabled" << 'PY'
 import json
 import sys
 
@@ -81,10 +81,12 @@ try:
         config = json.load(f)
 except Exception:
     config = {}
-config.setdefault("background", {})["wallpaperEnabled"] = enabled
-with open(path, "w") as f:
-    json.dump(config, f, indent=4)
-    f.write("\n")
+current = config.get("background", {}).get("wallpaperEnabled")
+if current != enabled:
+    config.setdefault("background", {})["wallpaperEnabled"] = enabled
+    with open(path, "w") as f:
+        json.dump(config, f, indent=4)
+        f.write("\n")
 PY
 
     # Send IPC to quickshell if running
@@ -167,7 +169,7 @@ usage() {
 set_static() {
     [[ $# -eq 1 && -f "$1" ]] || { usage; exit 1; }
     stop_engines
-    caelestia wallpaper -f "$1"
+    caelestia wallpaper --no-smart -f "$1"
     set_wallpaper_mode static
 }
 
@@ -175,7 +177,7 @@ set_gif() {
     [[ $# -eq 1 && -f "$1" ]] || { usage; exit 1; }
     local gif="$1"
     stop_engines
-    caelestia wallpaper -f "$gif"
+    caelestia wallpaper --no-smart -f "$gif"
     echo "$gif" > "$HOME/.local/state/caelestia/wallpaper/live_path.txt"
     setsid mpvpaper -p -o "no-audio loop --loop-file=inf --demuxer-max-bytes=8MiB" eDP-1 "$gif" </dev/null >/dev/null 2>&1 &
     disown
@@ -195,7 +197,7 @@ set_video() {
     base="${base%.*}"
     local thumb="$(dirname "$vid")/.thumbnails/${base}.jpg"
     if [[ -f "$thumb" ]]; then
-        caelestia wallpaper -f "$thumb"
+        caelestia wallpaper --no-smart -f "$thumb"
     fi
     echo "$vid" > "$HOME/.local/state/caelestia/wallpaper/live_path.txt"
     local mpv_opts="no-audio loop --loop-file=inf --hwdec=auto-safe --vd-lavc-threads=2 --cache=no --demuxer-max-bytes=16MiB --demuxer-max-back-bytes=0 --demuxer-readahead-secs=0.5 --sws-scaler=fast-bilinear"
@@ -231,7 +233,7 @@ resume_wallpaper() {
         set_static "$(cat "$curr")"
     else
         stop_engines
-        caelestia wallpaper -r
+        caelestia wallpaper --no-smart -r
         set_wallpaper_mode static
     fi
 }
@@ -243,7 +245,7 @@ case "${1:-}" in
         ;;
     random)
         stop_engines
-        caelestia wallpaper -r
+        caelestia wallpaper --no-smart -r
         set_wallpaper_mode static
         ;;
     gif)

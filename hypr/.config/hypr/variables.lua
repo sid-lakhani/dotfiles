@@ -28,11 +28,16 @@ return {
     blurPasses                 = 2,
     blurXray                   = false,
 
+    -- Dimming & Focus
+    dimInactive                = true,
+    dimStrength                = 0.15,
+
     -- Shadow
     shadowEnabled              = true,
-    shadowRange                = 15,
-    shadowRenderPower          = 4,
-    shadowColour               = "rgba(" .. scheme.inversePrimary .. "10)",
+    shadowRange                = 24,
+    shadowRenderPower          = 3,
+    shadowColour               = "rgba(" .. scheme.primary .. "28)",
+    shadowInactiveColour       = "rgba(00000035)",
 
     -- Gaps
     workspaceGaps              = 20,
@@ -44,8 +49,8 @@ return {
     windowOpacity              = 0.95,
     windowRounding             = 15,
     windowBorderSize           = 1,
-    activeWindowBorderColour   = "rgba(" .. scheme.primary .. "e6)",
-    inactiveWindowBorderColour = "rgba(" .. scheme.onSurfaceVariant .. "11)",
+    activeWindowBorderColour   = "rgba(" .. scheme.primary .. "ee)",
+    inactiveWindowBorderColour = "rgba(" .. scheme.onSurfaceVariant .. "22)",
 
     -- Misc
     volumeStep                 = 10,

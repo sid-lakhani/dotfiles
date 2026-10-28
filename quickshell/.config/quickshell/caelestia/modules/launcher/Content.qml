@@ -95,23 +95,28 @@ Item {
 
         Keys.onPressed: event => {
             if (list.showWallpapers) {
-                const prefix = GlobalConfig.launcher.actionPrefix;
-                const rawText = search.text.trim();
-                const isOnlyWallpaper = (rawText === `${prefix}wallpaper` || rawText === "wallpaper");
                 const hasCtrl = (event.modifiers & Qt.ControlModifier);
                 const hasAlt = (event.modifiers & Qt.AltModifier);
 
-                if (isOnlyWallpaper || hasCtrl || hasAlt) {
-                    if (event.key === Qt.Key_I || (hasCtrl && event.key === Qt.Key_1)) {
+                if (hasCtrl || hasAlt) {
+                    if (event.key === Qt.Key_1) {
                         list.currentList.selectedTab = 0;
                         event.accepted = true;
                         return;
-                    } else if (event.key === Qt.Key_S || (hasCtrl && event.key === Qt.Key_2)) {
+                    } else if (event.key === Qt.Key_2) {
                         list.currentList.selectedTab = 1;
                         event.accepted = true;
                         return;
-                    } else if (event.key === Qt.Key_L || (hasCtrl && event.key === Qt.Key_3)) {
+                    } else if (event.key === Qt.Key_3) {
                         list.currentList.selectedTab = 2;
+                        event.accepted = true;
+                        return;
+                    } else if (event.key === Qt.Key_Tab) {
+                        list.currentList.selectedTab = (list.currentList.selectedTab + 1) % 3;
+                        event.accepted = true;
+                        return;
+                    } else if (event.key === Qt.Key_Backtab) {
+                        list.currentList.selectedTab = (list.currentList.selectedTab + 2) % 3;
                         event.accepted = true;
                         return;
                     }

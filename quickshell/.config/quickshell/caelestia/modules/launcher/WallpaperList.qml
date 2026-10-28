@@ -53,12 +53,27 @@ PathView {
     }
 
     FileSystemModel {
+        id: staticImages
+        path: `${Paths.wallsdir}/images`
+        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+        watchChanges: true
+    }
+
+    FileSystemModel {
+        id: solidImages
+        path: `${Paths.wallsdir}/solids`
+        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+        watchChanges: true
+    }
+
+    FileSystemModel {
         id: liveVideos
         path: `${Paths.wallsdir}/live`
         nameFilters: ["*.mp4", "*.mkv", "*.webm", "*.gif"]
+        watchChanges: true
     }
 
-    StyledRect {
+    Item {
         id: tabContainer
 
         z: 10
@@ -66,87 +81,126 @@ PathView {
         anchors.topMargin: Tokens.spacing.small
         anchors.horizontalCenter: parent.horizontalCenter
 
-        implicitHeight: 38
-        implicitWidth: tabRow.implicitWidth + 8
-        radius: Tokens.rounding.full
-        color: Colours.tPalette.m3surfaceContainerHigh
-        border.color: Colours.palette.m3outlineVariant
-        border.width: 1
+        implicitHeight: 34
+        implicitWidth: trackRect.implicitWidth
 
-        Row {
-            id: tabRow
+        readonly property Item currentTabItem: {
+            if (!tabRepeater || tabRepeater.count === 0)
+                return null;
+            return tabRepeater.itemAt(root.selectedTab) as Item;
+        }
 
-            anchors.centerIn: parent
-            spacing: 4
+        StyledRect {
+            id: trackRect
 
-            Repeater {
-                model: [
-                    { id: 0, text: qsTr("Images"), icon: "image", count: root.imagesCount },
-                    { id: 1, text: qsTr("Solids"), icon: "palette", count: root.solidsCount },
-                    { id: 2, text: qsTr("Live"), icon: "play_circle", count: root.liveCount }
-                ]
+            anchors.fill: parent
+            implicitHeight: 34
+            implicitWidth: tabRow.implicitWidth + 8
+            radius: 8
+            color: Colours.tPalette.m3surfaceContainer
+            border.color: Colours.palette.m3outlineVariant
+            border.width: 1
 
-                delegate: StyledRect {
-                    id: chip
+            // Sliding active indicator pill
+            StyledRect {
+                id: indicator
 
-                    required property var modelData
+                y: 3
+                height: trackRect.height - 6
+                radius: 6
+                color: Colours.tPalette.m3surfaceContainerLowest
+                border.width: 1
+                border.color: Colours.palette.m3outlineVariant
 
-                    readonly property bool isSelected: root.selectedTab === modelData.id
+                x: tabContainer.currentTabItem ? (tabRow.x + tabContainer.currentTabItem.x + 2) : 4
+                width: tabContainer.currentTabItem ? (tabContainer.currentTabItem.width - 4) : 80
 
-                    implicitHeight: 30
-                    implicitWidth: chipRow.implicitWidth + Tokens.padding.medium * 2
-                    radius: Tokens.rounding.full
-                    color: isSelected ? Colours.palette.m3primary : "transparent"
+                Behavior on x {
+                    Anim {
+                        duration: 180
+                        easing.type: Easing.OutCubic
+                    }
+                }
 
-                    Row {
-                        id: chipRow
+                Behavior on width {
+                    Anim {
+                        duration: 160
+                        easing.type: Easing.OutCubic
+                    }
+                }
+            }
 
-                        anchors.centerIn: parent
-                        spacing: Tokens.spacing.extraSmall
+            Row {
+                id: tabRow
 
-                        MaterialIcon {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: chip.modelData.icon
-                            color: chip.isSelected ? Colours.palette.m3onPrimary : Colours.palette.m3onSurfaceVariant
-                            fontStyle: Tokens.font.icon.small
-                        }
+                anchors.centerIn: parent
+                spacing: 2
 
-                        StyledText {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: chip.modelData.text
-                            color: chip.isSelected ? Colours.palette.m3onPrimary : Colours.palette.m3onSurfaceVariant
-                            font: Tokens.font.label.large
-                        }
+                Repeater {
+                    id: tabRepeater
 
-                        StyledRect {
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: chip.modelData.count > 0
-                            implicitHeight: 18
-                            implicitWidth: Math.max(18, countText.implicitWidth + 8)
-                            radius: Tokens.rounding.full
-                            color: chip.isSelected ? Colours.tPalette.m3primaryContainer : Colours.tPalette.m3surfaceContainerHighest
+                    model: [
+                        { id: 0, text: qsTr("Images"), icon: "image", count: root.imagesCount },
+                        { id: 1, text: qsTr("Solids"), icon: "palette", count: root.solidsCount },
+                        { id: 2, text: qsTr("Live"), icon: "play_circle", count: root.liveCount }
+                    ]
+
+                    delegate: Item {
+                        id: chip
+
+                        required property var modelData
+                        required property int index
+
+                        readonly property bool isSelected: root.selectedTab === modelData.id
+
+                        implicitHeight: 28
+                        implicitWidth: chipRow.implicitWidth + 20
+
+                        Row {
+                            id: chipRow
+
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            MaterialIcon {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: chip.modelData.icon
+                                color: chip.isSelected ? Colours.palette.m3onSurface : Colours.palette.m3onSurfaceVariant
+                                fontStyle: Tokens.font.icon.small
+                            }
 
                             StyledText {
-                                id: countText
-                                anchors.centerIn: parent
-                                text: String(chip.modelData.count)
-                                color: chip.isSelected ? Colours.palette.m3onPrimaryContainer : Colours.palette.m3outline
-                                font: Tokens.font.label.small
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: chip.modelData.text
+                                color: chip.isSelected ? Colours.palette.m3onSurface : Colours.palette.m3onSurfaceVariant
+                                font: Tokens.font.label.large
+                            }
+
+                            StyledRect {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: chip.modelData.count > 0
+                                implicitHeight: 18
+                                implicitWidth: Math.max(18, countText.implicitWidth + 8)
+                                radius: 4
+                                color: chip.isSelected ? Colours.tPalette.m3surfaceContainerHighest : Colours.tPalette.m3surfaceContainerHigh
+
+                                StyledText {
+                                    id: countText
+                                    anchors.centerIn: parent
+                                    text: String(chip.modelData.count)
+                                    color: chip.isSelected ? Colours.palette.m3onSurface : Colours.palette.m3outline
+                                    font: Tokens.font.label.small
+                                }
                             }
                         }
-                    }
 
-                    StateLayer {
-                        radius: parent.radius
-                        color: chip.isSelected ? Colours.palette.m3onPrimary : Colours.palette.m3primary
-                        onClicked: {
-                            root.selectedTab = chip.modelData.id;
-                        }
-                    }
-
-                    Behavior on color {
-                        Anim {
-                            type: Anim.DefaultEffects
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.selectedTab = chip.modelData.id;
+                            }
                         }
                     }
                 }
