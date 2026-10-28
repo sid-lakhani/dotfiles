@@ -13,7 +13,7 @@ Searcher {
 
     readonly property string currentNamePath: `${Paths.state}/wallpaper/path.txt`
     readonly property string modePath: `${Paths.state}/wallpaper/mode.txt`
-    readonly property list<string> smartArg: GlobalConfig.services.smartScheme ? [] : ["--no-smart"]
+    readonly property list<string> smartArg: ["--no-smart"]
     readonly property string fallback: Quickshell.shellPath("assets/wallpaper.webp")
 
     property bool isLive: false
