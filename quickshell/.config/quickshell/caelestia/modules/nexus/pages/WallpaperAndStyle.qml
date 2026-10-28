@@ -182,7 +182,7 @@ PageBase {
                     "-c",
                     "cd /home/sidlakhani && exec /home/sidlakhani/.local/bin/wallpaper \"$1\"",
                     "wallpaper",
-                    checked ? "stop-engines" : "stop"
+                    checked ? "resume" : "stop"
                 ]);
             }
         }

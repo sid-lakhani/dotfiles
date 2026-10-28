@@ -7,13 +7,14 @@ export CAELESTIA_WALLPAPERS_DIR="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}"
 stop_engines() {
     awww kill 2>/dev/null || true
     pkill -x mpvpaper 2>/dev/null || true
+    pkill -f "mpvpaper" 2>/dev/null || true
     local tries=0
-    while pgrep -x mpvpaper >/dev/null 2>&1 && [[ $tries -lt 20 ]]; do
+    while pgrep -f "mpvpaper" >/dev/null 2>&1 && [[ $tries -lt 20 ]]; do
         sleep 0.05
         tries=$((tries + 1))
     done
-    if pgrep -x mpvpaper >/dev/null 2>&1; then
-        pkill -9 -x mpvpaper 2>/dev/null || true
+    if pgrep -f "mpvpaper" >/dev/null 2>&1; then
+        pkill -9 -f "mpvpaper" 2>/dev/null || true
     fi
 }
 
@@ -43,12 +44,32 @@ restart_caelestia_shell() {
         sleep 0.2
     fi
 
+    # Kill external notification daemons so quickshell claims org.freedesktop.Notifications
+    pkill -x mako 2>/dev/null || true
+
     # Relaunch single user shell instance using caelestia shell -d (enforces -n)
     caelestia shell -d
 }
 
-set_caelestia_wallpaper() {
-    local enabled="$1"
+set_wallpaper_mode() {
+    local mode="$1" # static | live | disabled
+    local state_dir="$HOME/.local/state/caelestia/wallpaper"
+    mkdir -p "$state_dir"
+    echo "$mode" > "$state_dir/mode.txt"
+
+    local is_live="false"
+    local enabled="true"
+    if [[ "$mode" == "live" ]]; then
+        is_live="true"
+        enabled="true"
+    elif [[ "$mode" == "static" ]]; then
+        is_live="false"
+        enabled="true"
+    else
+        is_live="false"
+        enabled="false"
+    fi
+
     # Update shell.json so persistent config is always in sync
     python - "$HOME/.config/caelestia/shell.json" "$enabled" <<'PY'
 import json
@@ -73,51 +94,182 @@ PY
         else
             qs ipc -c caelestia call wallpaper disable >/dev/null 2>&1 || true
         fi
+        qs ipc -c caelestia call wallpaper setLive "$is_live" >/dev/null 2>&1 || true
     else
         # Fallback: only launch if not running, using caelestia shell -d (enforces -n)
         caelestia shell -d
     fi
 }
 
+set_caelestia_wallpaper() {
+    local enabled="$1"
+    if [[ "$enabled" == "true" ]]; then
+        set_wallpaper_mode static
+    else
+        set_wallpaper_mode disabled
+    fi
+}
+
+ensure_thumbnail() {
+    local vid="$1"
+    local dir="$(dirname "$vid")"
+    local base="$(basename "$vid")"
+    base="${base%.*}"
+    local thumb_dir="$dir/.thumbnails"
+    local thumb="$thumb_dir/${base}.jpg"
+    if [[ ! -f "$thumb" && "$vid" =~ \.(mp4|mkv|webm)$ ]] && command -v ffmpeg >/dev/null 2>&1; then
+        mkdir -p "$thumb_dir"
+        ffmpeg -y -ss 00:00:01 -i "$vid" -vframes 1 -q:v 2 "$thumb" >/dev/null 2>&1 || true
+    fi
+}
+
+generate_all_thumbnails() {
+    local anim_dir="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}/animated"
+    mkdir -p "$anim_dir/.thumbnails"
+    for vid in "$anim_dir"/*.{mp4,mkv,webm}; do
+        [[ -f "$vid" ]] || continue
+        ensure_thumbnail "$vid"
+    done
+}
+
+optimize_videos() {
+    local anim_dir="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}/animated"
+    mkdir -p "$anim_dir"
+    echo "Inspecting animated wallpapers for display resolution optimization..."
+    for vid in "$anim_dir"/*.{mp4,mkv,webm}; do
+        [[ -f "$vid" ]] || continue
+        local width
+        width=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=noprint_wrappers=1:nokey=1 "$vid" 2>/dev/null || echo "")
+        if [[ -n "$width" && "$width" -gt 1920 ]]; then
+            echo "Downscaling $(basename "$vid") from ${width}px to native 1080p (reduces frame buffer memory by ~75%)..."
+            local tmp="${vid%.*}.1080p_temp.mp4"
+            ffmpeg -y -i "$vid" -vf "scale=1920:-2:flags=lanczos" -c:v libx264 -crf 20 -preset fast -an "$tmp" >/dev/null 2>&1
+            if [[ -f "$tmp" && -s "$tmp" ]]; then
+                mv "$tmp" "$vid"
+                echo "✓ Optimized $(basename "$vid")"
+            else
+                rm -f "$tmp"
+            fi
+        else
+            echo "✓ $(basename "$vid") is already optimal (${width:-unknown}px)"
+        fi
+    done
+    generate_all_thumbnails
+    echo "Optimization complete! Animated wallpapers are now native 1080p with minimal RAM footprint."
+}
+
 usage() {
-    echo "Usage: wallpaper static <image> | gif <animation.gif> | video <video.mp4> | random | stop | stop-engines | restart-shell"
+    echo "Usage: wallpaper static <image> | gif <animation.gif> | video <video.mp4> | random | resume | stop | stop-engines | restart-shell | generate-thumbnails | optimize-videos"
+}
+
+set_static() {
+    [[ $# -eq 1 && -f "$1" ]] || { usage; exit 1; }
+    stop_engines
+    caelestia wallpaper -f "$1"
+    set_wallpaper_mode static
+}
+
+set_gif() {
+    [[ $# -eq 1 && -f "$1" ]] || { usage; exit 1; }
+    local gif="$1"
+    stop_engines
+    caelestia wallpaper -f "$gif"
+    echo "$gif" > "$HOME/.local/state/caelestia/wallpaper/live_path.txt"
+    setsid mpvpaper -p -o "no-audio loop --loop-file=inf --demuxer-max-bytes=8MiB" eDP-1 "$gif" </dev/null >/dev/null 2>&1 &
+    disown
+    (
+        sleep 0.35
+        set_wallpaper_mode live
+    ) >/dev/null 2>&1 &
+    disown
+}
+
+set_video() {
+    [[ $# -eq 1 && -f "$1" ]] || { usage; exit 1; }
+    local vid="$1"
+    stop_engines
+    ensure_thumbnail "$vid"
+    local base="$(basename "$vid")"
+    base="${base%.*}"
+    local thumb="$(dirname "$vid")/.thumbnails/${base}.jpg"
+    if [[ -f "$thumb" ]]; then
+        caelestia wallpaper -f "$thumb"
+    fi
+    echo "$vid" > "$HOME/.local/state/caelestia/wallpaper/live_path.txt"
+    local mpv_opts="no-audio loop --loop-file=inf --hwdec=auto-safe --vd-lavc-threads=2 --cache=no --demuxer-max-bytes=16MiB --demuxer-max-back-bytes=0 --demuxer-readahead-secs=0.5 --sws-scaler=fast-bilinear"
+    setsid mpvpaper -p -o "$mpv_opts" eDP-1 "$vid" </dev/null >/dev/null 2>&1 &
+    disown
+    (
+        sleep 0.35
+        set_wallpaper_mode live
+    ) >/dev/null 2>&1 &
+    disown
+}
+
+resume_wallpaper() {
+    local mode="static"
+    local state_dir="$HOME/.local/state/caelestia/wallpaper"
+    [[ -f "$state_dir/mode.txt" ]] && mode=$(cat "$state_dir/mode.txt")
+    local live_file="$state_dir/live_path.txt"
+    if [[ "$mode" == "live" && -f "$live_file" ]]; then
+        local target
+        target=$(cat "$live_file")
+        if [[ -f "$target" ]]; then
+            if [[ "$target" =~ \.gif$ ]]; then
+                set_gif "$target"
+                return
+            else
+                set_video "$target"
+                return
+            fi
+        fi
+    fi
+    local curr="$state_dir/path.txt"
+    if [[ -f "$curr" ]]; then
+        set_static "$(cat "$curr")"
+    else
+        stop_engines
+        caelestia wallpaper -r
+        set_wallpaper_mode static
+    fi
 }
 
 case "${1:-}" in
     static)
-        [[ $# -eq 2 && -f "$2" ]] || { usage; exit 1; }
-        stop_engines
-        caelestia wallpaper -f "$2"
-        set_caelestia_wallpaper true
+        shift
+        set_static "${1:-}"
         ;;
     random)
         stop_engines
         caelestia wallpaper -r
-        set_caelestia_wallpaper true
+        set_wallpaper_mode static
         ;;
     gif)
-        [[ $# -eq 2 && -f "$2" ]] || { usage; exit 1; }
-        stop_engines
-        set_caelestia_wallpaper false
-        awww-daemon &
-        sleep 1
-        awww img "$2"
+        shift
+        set_gif "${1:-}"
         ;;
     video)
-        [[ $# -eq 2 && -f "$2" ]] || { usage; exit 1; }
-        stop_engines
-        set_caelestia_wallpaper false
-        nohup mpvpaper -o "no-audio loop" eDP-1 "$2" >/tmp/mpvpaper.log 2>&1 </dev/null &
+        shift
+        set_video "${1:-}"
+        ;;
+    resume)
+        resume_wallpaper
         ;;
     stop)
         stop_engines
-        set_caelestia_wallpaper false
+        set_wallpaper_mode disabled
         ;;
     stop-engines)
         stop_engines
         ;;
     restart-shell)
         restart_caelestia_shell
+        ;;
+    generate-thumbnails)
+        generate_all_thumbnails
+        ;;
+    optimize-videos)
+        optimize_videos
         ;;
     *)
         usage

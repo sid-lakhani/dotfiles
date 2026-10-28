@@ -29,14 +29,12 @@ Item {
         radius: Tokens.rounding.large
         onClicked: {
             if (root.modelData.thumbnail) {
-                Quickshell.execDetached([
-                    "/usr/bin/bash",
-                    "-c",
-                    "cd /home/sidlakhani && exec /home/sidlakhani/.local/bin/wallpaper \"$1\" \"$2\"",
-                    "wallpaper",
-                    "video",
-                    root.modelData.path
-                ]);
+                const isGif = root.modelData.path.endsWith(".gif");
+                Wallpapers.commitLive(
+                    root.modelData.thumbnail || root.modelData.path,
+                    root.modelData.path,
+                    isGif
+                );
             } else {
                 Wallpapers.setWallpaper(root.modelData.path);
             }

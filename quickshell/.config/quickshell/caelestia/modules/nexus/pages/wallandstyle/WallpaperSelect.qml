@@ -83,7 +83,7 @@ PageBase {
 
         StyledText {
             Layout.topMargin: Tokens.spacing.large
-            text: qsTr("Local wallpapers")
+            text: qsTr("Images")
             font: Tokens.font.title.small
         }
 
@@ -104,8 +104,12 @@ PageBase {
                     const categories = {};
                     const list = [];
                     for (const w of walls) {
+                        if (w.path.includes("/animated/"))
+                            continue;
                         if (w.parentDir !== baseDir) {
                             const category = Wallpapers.getCategoryFor(w);
+                            if (category === "animated")
+                                continue;
                             if (category && (!(category in categories) || categories[category].name.localeCompare(w.name) > 0))
                                 categories[category] = w;
                         } else {
@@ -152,8 +156,14 @@ PageBase {
 
         StyledText {
             Layout.topMargin: Tokens.spacing.large
-            text: qsTr("Animated wallpapers")
+            text: qsTr("Live")
             font: Tokens.font.title.small
+        }
+
+        FileSystemModel {
+            id: animatedModel
+            path: `${Paths.wallsdir}/animated`
+            nameFilters: ["*.mp4", "*.mkv", "*.webm", "*.gif"]
         }
 
         GridLayout {
@@ -162,23 +172,27 @@ PageBase {
             rowSpacing: Tokens.spacing.medium
             columnSpacing: Tokens.spacing.large
 
-            WallItem {
-                Layout.fillWidth: true
-                source: "/home/sidlakhani/pix/wall/animated/.thumbnails/sakura-blade-elegance.jpg"
-                text: "Sakura Blade · Video"
-                onClicked: {
-                    Quickshell.execDetached(["/home/sidlakhani/.local/bin/wallpaper", "video", "/home/sidlakhani/pix/wall/animated/sakura-blade-elegance.3840x2160.mp4"]);
-                    root.nState.closeSubPage();
-                }
-            }
+            Repeater {
+                model: animatedModel.entries
 
-            WallItem {
-                Layout.fillWidth: true
-                source: "/home/sidlakhani/pix/wall/animated/.thumbnails/spider-man.jpg"
-                text: "Spider-Man · Video"
-                onClicked: {
-                    Quickshell.execDetached(["/home/sidlakhani/.local/bin/wallpaper", "video", "/home/sidlakhani/pix/wall/animated/spider-man.3840x2160.mp4"]);
-                    root.nState.closeSubPage();
+                WallItem {
+                    required property FileSystemEntry modelData
+
+                    readonly property bool isGif: modelData ? modelData.name.endsWith(".gif") : false
+                    readonly property string baseName: modelData ? modelData.name.replace(/\.[^.]+$/, "") : ""
+                    readonly property string cleanTitle: baseName.replace(/[-_.]/g, " ").replace(/\b\w/g, l => l.toUpperCase())
+
+                    Layout.fillWidth: true
+                    source: isGif ? (modelData?.path ?? "") : `${Paths.wallsdir}/animated/.thumbnails/${baseName}.jpg`
+                    text: isGif ? `${cleanTitle} · GIF` : `${cleanTitle} · Video`
+                    onClicked: {
+                        Wallpapers.commitLive(
+                            isGif ? (modelData?.path ?? "") : `${Paths.wallsdir}/animated/.thumbnails/${baseName}.jpg`,
+                            modelData.path,
+                            isGif
+                        );
+                        root.nState.closeSubPage();
+                    }
                 }
             }
         }

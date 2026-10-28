@@ -12,9 +12,11 @@ Searcher {
     id: root
 
     readonly property string currentNamePath: `${Paths.state}/wallpaper/path.txt`
+    readonly property string modePath: `${Paths.state}/wallpaper/mode.txt`
     readonly property list<string> smartArg: GlobalConfig.services.smartScheme ? [] : ["--no-smart"]
     readonly property string fallback: Quickshell.shellPath("assets/wallpaper.webp")
 
+    property bool isLive: false
     property bool showPreview: false
     readonly property string current: showPreview ? previewPath : actualCurrent
     property string previewPath
@@ -40,12 +42,32 @@ Searcher {
         Quickshell.execDetached(["/home/sidlakhani/.local/bin/wallpaper", "static", path]);
     }
 
+    function commitLive(thumb: string, videoPath: string, isGif: bool): void {
+        actualCurrent = thumb;
+        previewPath = thumb;
+        isLive = false;
+        if (Colours.scheme === "dynamic")
+            previewColourLock = true;
+        Quickshell.execDetached(["/usr/bin/pkill", "-x", "mpvpaper"]);
+        Quickshell.execDetached([
+            "/usr/bin/bash",
+            "-c",
+            "cd /home/sidlakhani && exec /home/sidlakhani/.local/bin/wallpaper \"$1\" \"$2\"",
+            "wallpaper",
+            isGif ? "gif" : "video",
+            videoPath
+        ]);
+    }
+
     function preview(path: string): void {
         previewPath = path;
         showPreview = true;
 
-        if (Colours.scheme === "dynamic")
+        if (Colours.scheme === "dynamic") {
+            if (getPreviewColoursProc.running)
+                getPreviewColoursProc.running = false;
             getPreviewColoursProc.running = true;
+        }
     }
 
     function stopPreview(): void {
@@ -93,7 +115,28 @@ Searcher {
             GlobalConfig.background.wallpaperEnabled = false;
         }
 
+        function setLive(live: string): void {
+            root.isLive = (live === "true" || live === "1");
+        }
+
+        function getLive(): bool {
+            return root.isLive;
+        }
+
         target: "wallpaper"
+    }
+
+    FileView {
+        path: root.modePath
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            root.isLive = text().trim() === "live";
+        }
+        onLoadFailed: {
+            root.isLive = false;
+        }
     }
 
     FileView {

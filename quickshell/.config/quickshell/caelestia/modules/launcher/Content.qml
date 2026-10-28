@@ -65,17 +65,13 @@ Item {
             const currentItem = list.currentList?.currentItem;
             if (currentItem) {
                 if (list.showWallpapers) {
-                    if (!currentItem.modelData.thumbnail && Colours.scheme === "dynamic" && currentItem.modelData.path !== Wallpapers.actualCurrent)
-                        Wallpapers.previewColourLock = true;
                     if (currentItem.modelData.thumbnail) {
-                        Quickshell.execDetached([
-                            "/usr/bin/bash",
-                            "-c",
-                            "cd /home/sidlakhani && exec /home/sidlakhani/.local/bin/wallpaper \"$1\" \"$2\"",
-                            "wallpaper",
-                            "video",
-                            currentItem.modelData.path
-                        ]);
+                        const isGif = currentItem.modelData.path.endsWith(".gif");
+                        Wallpapers.commitLive(
+                            currentItem.modelData.thumbnail || currentItem.modelData.path,
+                            currentItem.modelData.path,
+                            isGif
+                        );
                     } else {
                         Wallpapers.setWallpaper(currentItem.modelData.path);
                     }
@@ -98,6 +94,30 @@ Item {
         Keys.onEscapePressed: root.screenState.launcher = false
 
         Keys.onPressed: event => {
+            if (list.showWallpapers) {
+                const prefix = GlobalConfig.launcher.actionPrefix;
+                const rawText = search.text.trim();
+                const isOnlyWallpaper = (rawText === `${prefix}wallpaper` || rawText === "wallpaper");
+                const hasCtrl = (event.modifiers & Qt.ControlModifier);
+                const hasAlt = (event.modifiers & Qt.AltModifier);
+
+                if (isOnlyWallpaper || hasCtrl || hasAlt) {
+                    if (event.key === Qt.Key_A || (hasCtrl && event.key === Qt.Key_1)) {
+                        list.currentList.selectedTab = 0;
+                        event.accepted = true;
+                        return;
+                    } else if (event.key === Qt.Key_I || (hasCtrl && event.key === Qt.Key_2)) {
+                        list.currentList.selectedTab = 1;
+                        event.accepted = true;
+                        return;
+                    } else if (event.key === Qt.Key_L || (hasCtrl && event.key === Qt.Key_3)) {
+                        list.currentList.selectedTab = 2;
+                        event.accepted = true;
+                        return;
+                    }
+                }
+            }
+
             if (!GlobalConfig.launcher.vimKeybinds)
                 return;
 
