@@ -141,17 +141,5 @@ PageBase {
             label: qsTr("Qt")
             value: CUtils.qtVersion || "…"
         }
-
-        // Plugins
-        SectionHeader {
-            text: qsTr("Plugins")
-        }
-
-        InfoRow {
-            first: true
-            last: true
-            label: qsTr("Loaded plugins")
-            value: root.pluginCount.toString()
-        }
     }
 }
