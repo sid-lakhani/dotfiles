@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Arch Linux Package Update Checker and Manager for Caelestia Desktop."""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+
+CACHE_PATH = os.path.expanduser("~/.cache/caelestia/updates.json")
+
+
+def parse_package_lines(output: str, pkg_type: str) -> list[dict]:
+    """Parse package update output lines into structured dictionary items."""
+    packages = []
+    for line in output.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 4 and parts[2] == "->":
+            packages.append({
+                "name": parts[0],
+                "old": parts[1],
+                "new": parts[3],
+                "type": pkg_type,
+            })
+    return packages
+
+
+def fetch_repo_updates() -> list[dict]:
+    """Check official repository updates via checkupdates or fallback."""
+    cmd = None
+    if shutil.which("checkupdates"):
+        cmd = ["checkupdates"]
+    elif shutil.which("paru"):
+        cmd = ["paru", "-Qu", "--repo"]
+    elif shutil.which("yay"):
+        cmd = ["yay", "-Qu", "--repo"]
+
+    if not cmd:
+        return []
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        # checkupdates returns 0 if updates available, 2 if up to date
+        if proc.returncode in (0, 2):
+            return parse_package_lines(proc.stdout, "repo")
+        return []
+    except Exception:
+        return []
+
+
+def fetch_aur_updates() -> list[dict]:
+    """Check AUR updates via yay -Qua or paru -Qua."""
+    cmd = None
+    if shutil.which("yay"):
+        cmd = ["yay", "-Qua"]
+    elif shutil.which("paru"):
+        cmd = ["paru", "-Qua"]
+
+    if not cmd:
+        return []
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        # yay/paru return 0 or non-zero depending on updates presence
+        return parse_package_lines(proc.stdout, "aur")
+    except Exception:
+        return []
+
+
+def cmd_status() -> None:
+    """Fetch all updates concurrently, save to cache atomically, and print JSON."""
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_repo = executor.submit(fetch_repo_updates)
+        f_aur = executor.submit(fetch_aur_updates)
+        repo_packages = f_repo.result()
+        aur_packages = f_aur.result()
+
+    total_packages = repo_packages + aur_packages
+    now_str = datetime.now().strftime("%-I:%M %p")
+
+    result = {
+        "status": "ok",
+        "total": len(total_packages),
+        "repo_count": len(repo_packages),
+        "aur_count": len(aur_packages),
+        "last_checked": now_str,
+        "packages": total_packages,
+    }
+
+    json_str = json.dumps(result, indent=2)
+
+    # Save atomically to cache
+    try:
+        cache_dir = os.path.dirname(CACHE_PATH)
+        os.makedirs(cache_dir, exist_ok=True)
+        fd, temp_file = tempfile.mkstemp(dir=cache_dir, prefix=".updates.", suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json_str + "\n")
+        os.replace(temp_file, CACHE_PATH)
+    except Exception as e:
+        sys.stderr.write(f"Warning: Failed to write cache: {e}\n")
+
+    print(json_str)
+
+
+def cmd_cache() -> None:
+    """Print cached updates immediately if available; otherwise trigger status."""
+    if os.path.isfile(CACHE_PATH):
+        try:
+            with open(CACHE_PATH, "r", encoding="utf-8") as f:
+                content = f.read()
+            # Validate JSON integrity
+            json.loads(content)
+            print(content.rstrip())
+            return
+        except Exception:
+            pass
+
+    cmd_status()
+
+
+def cmd_upgrade() -> None:
+    """Launch detached interactive terminal for system upgrade."""
+    helper = "yay" if shutil.which("yay") else "paru"
+    upgrade_shell = (
+        "echo -e '\\033[1;36m=== Arch Linux System Upgrade ===\\033[0m\\n'; "
+        f"{helper} -Syu; "
+        "echo ''; "
+        "read -p 'Upgrade finished. Press Enter to close...' dummy"
+    )
+
+    cmd = [
+        "foot",
+        "-T",
+        "System Upgrade",
+        "--app-id=system-upgrade",
+        "sh",
+        "-c",
+        upgrade_shell,
+    ]
+
+    try:
+        subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except FileNotFoundError:
+        # Fallback to standard x-terminal-emulator or sh if foot is missing
+        fallback_term = shutil.which("foot") or shutil.which("x-terminal-emulator") or "sh"
+        subprocess.Popen(
+            [fallback_term, "-c", upgrade_shell],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+
+def main() -> None:
+    arg = sys.argv[1] if len(sys.argv) > 1 else "status"
+
+    if arg == "status":
+        cmd_status()
+    elif arg == "cache":
+        cmd_cache()
+    elif arg == "upgrade":
+        cmd_upgrade()
+    elif arg in ("-h", "--help", "help"):
+        print("Usage: check-updates [status|cache|upgrade]")
+        sys.exit(0)
+    else:
+        sys.stderr.write(f"Unknown command: {arg}\nUsage: check-updates [status|cache|upgrade]\n")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
