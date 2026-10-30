@@ -67,7 +67,7 @@ dotfiles/
 ### 1. Clone the repository
 
 ```sh
-git clone https://github.com/sidlakhani/dotfiles.git ~/repos/dotfiles
+git clone https://github.com/sid-lakhani/dotfiles.git ~/repos/dotfiles
 cd ~/repos/dotfiles
 ```
 
