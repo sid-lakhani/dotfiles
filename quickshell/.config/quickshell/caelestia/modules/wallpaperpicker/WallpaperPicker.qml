@@ -335,7 +335,7 @@ Scope {
                             }
                         }
 
-                        // Tab 1: Live Motion
+                        // Tab 1: Live
                         Item {
                             id: liveTabItem
 
@@ -348,42 +348,6 @@ Scope {
                                 anchors.centerIn: parent
                                 spacing: 9
 
-                                // Pulsing LIVE beacon dot
-                                Item {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 12
-                                    height: 12
-
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        width: 12
-                                        height: 12
-                                        radius: 6
-                                        color: Qt.rgba(Colours.palette.m3primary.r, Colours.palette.m3primary.g, Colours.palette.m3primary.b, 0.4)
-
-                                        SequentialAnimation on scale {
-                                            loops: Animation.Infinite
-                                            running: root.open
-                                            NumberAnimation { from: 0.8; to: 1.5; duration: 900; easing.type: Easing.OutSine }
-                                            NumberAnimation { from: 1.5; to: 0.8; duration: 900; easing.type: Easing.InSine }
-                                        }
-                                        SequentialAnimation on opacity {
-                                            loops: Animation.Infinite
-                                            running: root.open
-                                            NumberAnimation { from: 0.8; to: 0.15; duration: 900; easing.type: Easing.OutSine }
-                                            NumberAnimation { from: 0.15; to: 0.8; duration: 900; easing.type: Easing.InSine }
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        width: 6
-                                        height: 6
-                                        radius: 3
-                                        color: Colours.palette.m3primary
-                                    }
-                                }
-
                                 MaterialIcon {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: "movie"
@@ -393,7 +357,7 @@ Scope {
 
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: qsTr("Live Motion")
+                                    text: qsTr("Live")
                                     color: root.selectedTab === 1 ? Colours.palette.m3onSurface : Colours.palette.m3outline
                                     font.family: titleFont.name ? titleFont.name : "Clash Display"
                                     font.pixelSize: 14

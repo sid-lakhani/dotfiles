@@ -1,3 +1,4 @@
+awww
 bluez-utils
 brightnessctl
 btop
