@@ -62,6 +62,11 @@ Item {
         placeholderText: qsTr("Type \"%1\" for commands").arg(GlobalConfig.launcher.actionPrefix)
 
         onAccepted: {
+            if (text.trim().startsWith(`${GlobalConfig.launcher.actionPrefix}wallpaper`)) {
+                root.screenState.launcher = false;
+                Quickshell.execDetached(["/usr/bin/qs", "ipc", "-c", "caelestia", "call", "wallpaperPicker", "openPicker"]);
+                return;
+            }
             const currentItem = list.currentList?.currentItem;
             if (currentItem) {
                 if (list.showWallpapers) {

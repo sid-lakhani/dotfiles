@@ -102,7 +102,7 @@ PageBase {
                     const walls = Wallpapers.list;
                     const list = [];
                     for (const w of walls) {
-                        if (w.path.includes("/live/") || w.path.includes("/animated/") || w.path.includes("/solids/"))
+                        if (w.path.includes("/live/") || w.path.includes("/animated/"))
                             continue;
                         list.push(w);
                     }
@@ -133,90 +133,8 @@ PageBase {
             }
         }
 
-        StyledText {
-            Layout.topMargin: Tokens.spacing.large
-            text: qsTr("Solids")
-            font: Tokens.font.title.small
-        }
 
-        FileSystemModel {
-            id: solidsModel
-            path: `${Paths.wallsdir}/solids`
-            filter: FileSystemModel.Images
-        }
 
-        GridLayout {
-            Layout.fillWidth: true
-            columns: Config.nexus.wallpapersPerRow
-            rowSpacing: Tokens.spacing.medium
-            columnSpacing: Tokens.spacing.large
-
-            Repeater {
-                model: solidsModel.entries
-
-                WallItem {
-                    required property FileSystemEntry modelData
-
-                    readonly property string baseName: modelData ? modelData.name.replace(/\.[^.]+$/, "") : ""
-                    readonly property string cleanTitle: baseName.replace(/[-_.]/g, " ").replace(/\b\w/g, l => l.toUpperCase())
-
-                    Layout.fillWidth: true
-                    source: String(modelData?.path ?? "")
-                    text: cleanTitle
-                    onClicked: {
-                        Wallpapers.setWallpaper(modelData.path);
-                        root.nState.closeSubPage();
-                    }
-                }
-            }
-        }
-
-        StyledText {
-            Layout.topMargin: Tokens.spacing.large
-            text: qsTr("Live")
-            font: Tokens.font.title.small
-        }
-
-        FileSystemModel {
-            id: liveModel
-            path: `${Paths.wallsdir}/live`
-            nameFilters: ["*.mp4", "*.mkv", "*.webm", "*.gif"]
-        }
-
-        GridLayout {
-            Layout.fillWidth: true
-            columns: Config.nexus.wallpapersPerRow
-            rowSpacing: Tokens.spacing.medium
-            columnSpacing: Tokens.spacing.large
-
-            Repeater {
-                model: liveModel.entries
-
-                WallItem {
-                    required property FileSystemEntry modelData
-
-                    readonly property bool isGif: modelData ? modelData.name.endsWith(".gif") : false
-                    readonly property string baseName: modelData ? modelData.name.replace(/\.[^.]+$/, "") : ""
-                    readonly property string cleanTitle: baseName
-                        .replace(/\.(1920x1080|3840x2160|2560x1440|1080p|4k|800)/gi, "")
-                        .replace(/[-_.]/g, " ")
-                        .replace(/\b\w/g, l => l.toUpperCase())
-                        .trim()
-
-                    Layout.fillWidth: true
-                    source: isGif ? (modelData?.path ?? "") : `${Paths.wallsdir}/live/.thumbnails/${baseName}.jpg`
-                    text: cleanTitle
-                    onClicked: {
-                        Wallpapers.commitLive(
-                            isGif ? (modelData?.path ?? "") : `${Paths.wallsdir}/live/.thumbnails/${baseName}.jpg`,
-                            modelData.path,
-                            isGif
-                        );
-                        root.nState.closeSubPage();
-                    }
-                }
-            }
-        }
 
         Loader {
             Layout.fillWidth: true

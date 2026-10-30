@@ -215,4 +215,7 @@ hl.layer_rule({ match = { namespace = "launcher" }, animation = "popin 80%", blu
 
 -- Shell
 hl.layer_rule({ match = { namespace = "caelestia-(border-exclusion|area-picker)" }, no_anim = true })
+hl.layer_rule({ match = { namespace = "quickshell:wallpaper" }, no_anim = true })
+hl.layer_rule({ match = { namespace = "mpvpaper" }, no_anim = true })
+hl.layer_rule({ match = { namespace = "awww-daemon" }, no_anim = true })
 hl.layer_rule({ match = { namespace = "caelestia-(drawers|background)" }, animation = "fade" })

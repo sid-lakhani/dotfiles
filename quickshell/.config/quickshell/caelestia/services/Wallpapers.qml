@@ -170,7 +170,7 @@ Searcher {
         recursive: true
         watchChanges: true
         path: Paths.wallsdir
-        filter: FileSystemModel.Images
+        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
     }
 
     Process {

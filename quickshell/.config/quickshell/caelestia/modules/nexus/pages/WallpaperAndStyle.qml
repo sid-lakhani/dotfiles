@@ -155,7 +155,9 @@ PageBase {
                 horizontalPadding: Tokens.padding.extraLarge
                 verticalPadding: Tokens.padding.medium
                 disabled: false
-                onClicked: root.nState.openSubPage(1) // Wallpaper page
+                onClicked: {
+                    Quickshell.execDetached(["/usr/bin/qs", "ipc", "-c", "caelestia", "call", "wallpaperPicker", "openPicker"]);
+                }
             }
 
             IconTextButton {

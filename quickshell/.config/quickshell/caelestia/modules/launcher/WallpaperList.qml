@@ -18,10 +18,7 @@ PathView {
     required property var panels
     required property var content
 
-    property int selectedTab: 0 // 0: Images, 1: Solids, 2: Live
     property int imagesCount: 0
-    property int solidsCount: 0
-    property int liveCount: 0
 
     readonly property int itemWidth: Tokens.sizes.launcher.wallpaperWidth * 0.8 + Tokens.padding.medium * 2
 
@@ -55,157 +52,8 @@ PathView {
     FileSystemModel {
         id: staticImages
         path: `${Paths.wallsdir}/images`
-        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif"]
         watchChanges: true
-    }
-
-    FileSystemModel {
-        id: solidImages
-        path: `${Paths.wallsdir}/solids`
-        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
-        watchChanges: true
-    }
-
-    FileSystemModel {
-        id: liveVideos
-        path: `${Paths.wallsdir}/live`
-        nameFilters: ["*.mp4", "*.mkv", "*.webm", "*.gif"]
-        watchChanges: true
-    }
-
-    Item {
-        id: tabContainer
-
-        z: 10
-        anchors.top: parent.top
-        anchors.topMargin: Tokens.spacing.small
-        anchors.horizontalCenter: parent.horizontalCenter
-
-        implicitHeight: 34
-        implicitWidth: trackRect.implicitWidth
-
-        readonly property Item currentTabItem: {
-            if (!tabRepeater || tabRepeater.count === 0)
-                return null;
-            return tabRepeater.itemAt(root.selectedTab) as Item;
-        }
-
-        StyledRect {
-            id: trackRect
-
-            anchors.fill: parent
-            implicitHeight: 34
-            implicitWidth: tabRow.implicitWidth + 8
-            radius: 8
-            color: Colours.tPalette.m3surfaceContainer
-            border.color: Colours.palette.m3outlineVariant
-            border.width: 1
-
-            // Sliding active indicator pill
-            StyledRect {
-                id: indicator
-
-                y: 3
-                height: trackRect.height - 6
-                radius: 6
-                color: Colours.tPalette.m3surfaceContainerLowest
-                border.width: 1
-                border.color: Colours.palette.m3outlineVariant
-
-                x: tabContainer.currentTabItem ? (tabRow.x + tabContainer.currentTabItem.x + 2) : 4
-                width: tabContainer.currentTabItem ? (tabContainer.currentTabItem.width - 4) : 80
-
-                Behavior on x {
-                    Anim {
-                        duration: 180
-                        easing.type: Easing.OutCubic
-                    }
-                }
-
-                Behavior on width {
-                    Anim {
-                        duration: 160
-                        easing.type: Easing.OutCubic
-                    }
-                }
-            }
-
-            Row {
-                id: tabRow
-
-                anchors.centerIn: parent
-                spacing: 2
-
-                Repeater {
-                    id: tabRepeater
-
-                    model: [
-                        { id: 0, text: qsTr("Images"), icon: "image", count: root.imagesCount },
-                        { id: 1, text: qsTr("Solids"), icon: "palette", count: root.solidsCount },
-                        { id: 2, text: qsTr("Live"), icon: "play_circle", count: root.liveCount }
-                    ]
-
-                    delegate: Item {
-                        id: chip
-
-                        required property var modelData
-                        required property int index
-
-                        readonly property bool isSelected: root.selectedTab === modelData.id
-
-                        implicitHeight: 28
-                        implicitWidth: chipRow.implicitWidth + 20
-
-                        Row {
-                            id: chipRow
-
-                            anchors.centerIn: parent
-                            spacing: 6
-
-                            MaterialIcon {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: chip.modelData.icon
-                                color: chip.isSelected ? Colours.palette.m3onSurface : Colours.palette.m3onSurfaceVariant
-                                fontStyle: Tokens.font.icon.small
-                            }
-
-                            StyledText {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: chip.modelData.text
-                                color: chip.isSelected ? Colours.palette.m3onSurface : Colours.palette.m3onSurfaceVariant
-                                font: Tokens.font.label.large
-                            }
-
-                            StyledRect {
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: chip.modelData.count > 0
-                                implicitHeight: 18
-                                implicitWidth: Math.max(18, countText.implicitWidth + 8)
-                                radius: 4
-                                color: chip.isSelected ? Colours.tPalette.m3surfaceContainerHighest : Colours.tPalette.m3surfaceContainerHigh
-
-                                StyledText {
-                                    id: countText
-                                    anchors.centerIn: parent
-                                    text: String(chip.modelData.count)
-                                    color: chip.isSelected ? Colours.palette.m3onSurface : Colours.palette.m3outline
-                                    font: Tokens.font.label.small
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                root.selectedTab = chip.modelData.id;
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 
     model: ScriptModel {
@@ -215,87 +63,26 @@ PathView {
 
         values: {
             let search = rawSearch.trim();
-            const lower = search.toLowerCase();
-            if (lower === "live" || lower.startsWith("live ") || lower.startsWith("video ") || lower === "video") {
-                if (root.selectedTab !== 2)
-                    root.selectedTab = 2;
-                search = search.replace(/^(live|video|anim)\s*/i, "");
-            } else if (lower === "solids" || lower === "solid" || lower.startsWith("solids ") || lower.startsWith("solid ") || lower.startsWith("pastel ") || lower === "pastel") {
-                if (root.selectedTab !== 1)
-                    root.selectedTab = 1;
-                search = search.replace(/^(solids?|pastel|colou?rs?)\s*/i, "");
-            } else if (lower === "images" || lower === "image" || lower.startsWith("images ") || lower.startsWith("image ") || lower.startsWith("img ")) {
-                if (root.selectedTab !== 0)
-                    root.selectedTab = 0;
-                search = search.replace(/^(images?|img)\s*/i, "");
-            }
-
-            const staticWalls = Wallpapers.query(search)
-                .filter(w => !w.path.includes("/live/") && !w.path.includes("/animated/") && !w.path.includes("/solids/"))
-                .map(w => {
-                    const base = w.name.replace(/\.[^.]+$/, "");
-                    const cleanName = base.replace(/[-_.]/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-                    return {
-                        name: cleanName,
-                        path: w.path,
-                        relativePath: w.relativePath
-                    };
-                });
-
-            const solidWalls = Wallpapers.query(search)
-                .filter(w => w.path.includes("/solids/"))
-                .map(w => {
-                    const base = w.name.replace(/\.[^.]+$/, "");
-                    const cleanName = base.replace(/[-_.]/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-                    return {
-                        name: cleanName,
-                        path: w.path,
-                        relativePath: w.relativePath
-                    };
-                });
-
-            const liveDir = `${Paths.wallsdir}/live`;
-            const animated = [];
-
-            if (liveVideos.entries) {
-                for (let i = 0; i < liveVideos.entries.length; i++) {
-                    const entry = liveVideos.entries[i];
-                    const isGif = entry.name.endsWith(".gif");
+            const staticWalls = [];
+            if (staticImages.entries) {
+                for (let i = 0; i < staticImages.entries.length; i++) {
+                    const entry = staticImages.entries[i];
                     const base = entry.name.replace(/\.[^.]+$/, "");
-                    const cleanTitle = base
-                        .replace(/\.(1920x1080|3840x2160|2560x1440|1080p|4k|800)/gi, "")
-                        .replace(/[-_.]/g, " ")
-                        .replace(/\b\w/g, l => l.toUpperCase())
-                        .trim();
-                    const thumbPath = isGif ? entry.path : `${liveDir}/.thumbnails/${base}.jpg`;
-
-                    if (!search || cleanTitle.toLowerCase().includes(search.toLowerCase()) || entry.name.toLowerCase().includes(search.toLowerCase())) {
-                        animated.push({
-                            name: cleanTitle,
+                    const cleanName = base.replace(/[-_.]/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+                    if (!search || cleanName.toLowerCase().includes(search.toLowerCase()) || entry.name.toLowerCase().includes(search.toLowerCase())) {
+                        staticWalls.push({
+                            name: cleanName,
                             path: entry.path,
-                            thumbnail: thumbPath
+                            relativePath: entry.name
                         });
                     }
                 }
             }
 
             root.imagesCount = staticWalls.length;
-            root.solidsCount = solidWalls.length;
-            root.liveCount = animated.length;
-
-            if (root.selectedTab === 0)
-                return staticWalls;
-            if (root.selectedTab === 1)
-                return solidWalls;
-            if (root.selectedTab === 2)
-                return animated;
             return staticWalls;
         }
         onValuesChanged: root.currentIndex = rawSearch ? 0 : values.findIndex(w => w.path === Wallpapers.actualCurrent)
-    }
-
-    onSelectedTabChanged: {
-        currentIndex = 0;
     }
 
     Component.onCompleted: currentIndex = Wallpapers.list.findIndex(w => w.path === Wallpapers.actualCurrent)
@@ -324,7 +111,7 @@ PathView {
     }
 
     path: Path {
-        startY: (root.height + tabContainer.implicitHeight + tabContainer.anchors.topMargin) / 2
+        startY: root.height / 2
 
         PathAttribute {
             name: "z"

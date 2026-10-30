@@ -19,8 +19,8 @@ Variants {
         screen: modelData
         name: "background"
         WlrLayershell.exclusionMode: ExclusionMode.Ignore
-        WlrLayershell.layer: (contentItem.Config.background.wallpaperEnabled && (!Wallpapers.isLive || Wallpapers.showPreview)) ? WlrLayer.Background : WlrLayer.Bottom
-        color: (contentItem.Config.background.wallpaperEnabled && (!Wallpapers.isLive || Wallpapers.showPreview)) ? "black" : "transparent"
+        WlrLayershell.layer: WlrLayer.Bottom
+        color: "transparent"
         surfaceFormat.opaque: false
 
         anchors.top: true
@@ -45,7 +45,7 @@ Variants {
                 asynchronous: true
 
                 anchors.fill: parent
-                active: Config.background.wallpaperEnabled && (!Wallpapers.isLive || Wallpapers.showPreview)
+                active: false
 
                 sourceComponent: Wallpaper {}
             }

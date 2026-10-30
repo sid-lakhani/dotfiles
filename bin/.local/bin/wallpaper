@@ -5,7 +5,6 @@ cd "$HOME"
 export CAELESTIA_WALLPAPERS_DIR="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}"
 
 stop_engines() {
-    awww kill 2>/dev/null || true
     pkill -x mpvpaper 2>/dev/null || true
     pkill -f "mpvpaper" 2>/dev/null || true
     local tries=0
@@ -15,6 +14,17 @@ stop_engines() {
     done
     if pgrep -f "mpvpaper" >/dev/null 2>&1; then
         pkill -9 -f "mpvpaper" 2>/dev/null || true
+    fi
+}
+
+ensure_awww() {
+    if ! awww query >/dev/null 2>&1; then
+        systemctl --user reset-failed awww-daemon >/dev/null 2>&1 || true
+        systemd-run --user --unit=awww-daemon \
+            -E WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" \
+            -E XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}" \
+            /usr/bin/awww-daemon >/dev/null 2>&1 || true
+        sleep 0.3
     fi
 }
 
@@ -57,15 +67,12 @@ set_wallpaper_mode() {
     mkdir -p "$state_dir"
     echo "$mode" > "$state_dir/mode.txt"
 
-    local is_live="false"
+    # Always treat as live/externally managed so Caelestia leaves the background layer
+    # transparent to awww. This prevents Caelestia's QML image loader from covering awww
+    # and breaking the circle reveal animation.
+    local is_live="true"
     local enabled="true"
-    if [[ "$mode" == "live" ]]; then
-        is_live="true"
-        enabled="true"
-    elif [[ "$mode" == "static" ]]; then
-        is_live="false"
-        enabled="true"
-    else
+    if [[ "$mode" == "disabled" ]]; then
         is_live="false"
         enabled="false"
     fi
@@ -122,7 +129,7 @@ ensure_thumbnail() {
     local thumb="$thumb_dir/${base}.jpg"
     if [[ ! -f "$thumb" && "$vid" =~ \.(mp4|mkv|webm)$ ]] && command -v ffmpeg >/dev/null 2>&1; then
         mkdir -p "$thumb_dir"
-        ffmpeg -y -ss 00:00:01 -i "$vid" -vframes 1 -q:v 2 "$thumb" >/dev/null 2>&1 || true
+        ffmpeg -y -i "$vid" -vframes 1 -q:v 2 "$thumb" >/dev/null 2>&1 || true
     fi
 }
 
@@ -367,28 +374,38 @@ PY
 
 set_static() {
     [[ $# -eq 1 && -f "$1" ]] || { usage; exit 1; }
+    local img="$1"
     stop_engines
-    adapt_scheme_variant "$1"
-    caelestia wallpaper --no-smart -f "$1"
-    set_wallpaper_mode static
-    sync_terminal_theme "$1"
+    ensure_awww
+    # Tell daemon to start 144 FPS circle grow transition (CLI returns in ~0.15s)
+    awww img "$img" --transition-type grow --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 0.7 >/dev/null 2>&1 || true
+    # Async: update theme + caelestia path state after circle completes
+    (
+        sleep 0.8
+        adapt_scheme_variant "$img"
+        caelestia wallpaper --no-smart -f "$img" >/dev/null 2>&1 || true
+        set_wallpaper_mode static
+        sync_terminal_theme "$img"
+    ) >/dev/null 2>&1 &
+    disown
 }
 
 set_gif() {
     [[ $# -eq 1 && -f "$1" ]] || { usage; exit 1; }
     local gif="$1"
     stop_engines
-    adapt_scheme_variant "$gif"
-    caelestia wallpaper --no-smart -f "$gif"
-    echo "$gif" > "$HOME/.local/state/caelestia/wallpaper/live_path.txt"
-    setsid mpvpaper -p -o "no-audio loop --loop-file=inf --demuxer-max-bytes=8MiB" eDP-1 "$gif" </dev/null >/dev/null 2>&1 &
-    disown
+    ensure_awww
+    # awww handles animated gifs natively
+    awww img "$gif" --transition-type grow --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 0.7 >/dev/null 2>&1 || true
     (
-        sleep 0.35
-        set_wallpaper_mode live
+        sleep 0.8
+        adapt_scheme_variant "$gif"
+        caelestia wallpaper --no-smart -f "$gif" >/dev/null 2>&1 || true
+        echo "$gif" > "$HOME/.local/state/caelestia/wallpaper/live_path.txt"
+        set_wallpaper_mode static
+        sync_terminal_theme "$gif"
     ) >/dev/null 2>&1 &
     disown
-    sync_terminal_theme "$gif"
 }
 
 set_video() {
@@ -399,20 +416,35 @@ set_video() {
     local base="$(basename "$vid")"
     base="${base%.*}"
     local thumb="$(dirname "$vid")/.thumbnails/${base}.jpg"
+    ensure_awww
+
+    # 1. Expand frame 0 thumbnail with circle grow (0.5s duration)
     if [[ -f "$thumb" ]]; then
-        adapt_scheme_variant "$thumb"
-        caelestia wallpaper --no-smart -f "$thumb"
+        awww img "$thumb" --transition-type grow --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 0.5 >/dev/null 2>&1 || true
     fi
+
+    # 2. Launch mpvpaper silently in parallel:
+    #    - Disown & detach via setsid with zero terminal I/O (--no-terminal, --msg-level=all=no)
+    #    - Spawns at 0.15s: mpv decodes frame 0 while circle is expanding
+    #    - By 0.5s circle completes and mpvpaper seamlessly continues playback
     echo "$vid" > "$HOME/.local/state/caelestia/wallpaper/live_path.txt"
-    local mpv_opts="no-audio loop --loop-file=inf --hwdec=auto-safe --vd-lavc-threads=2 --cache=no --demuxer-max-bytes=16MiB --demuxer-max-back-bytes=0 --demuxer-readahead-secs=0.5 --sws-scaler=fast-bilinear"
+    local mpv_opts="no-audio loop --loop-file=inf --hwdec=auto-safe --vd-lavc-threads=2 --demuxer-max-bytes=16MiB --sws-scaler=fast-bilinear --no-terminal --msg-level=all=no"
+    sleep 0.15
     setsid mpvpaper -p -o "$mpv_opts" eDP-1 "$vid" </dev/null >/dev/null 2>&1 &
-    disown
+
+    # 3. Synchronize theme palette and state in the background
     (
-        sleep 0.35
+        sleep 0.6
         set_wallpaper_mode live
+        if [[ -f "$thumb" ]]; then
+            adapt_scheme_variant "$thumb"
+            caelestia wallpaper --no-smart -f "$thumb" >/dev/null 2>&1 || true
+            sync_terminal_theme "$thumb"
+        else
+            sync_terminal_theme "$vid"
+        fi
     ) >/dev/null 2>&1 &
     disown
-    sync_terminal_theme "${thumb:-$vid}"
 }
 
 pick_and_set_random() {
@@ -475,6 +507,18 @@ resume_wallpaper() {
 }
 
 case "${1:-}" in
+    set)
+        shift
+        target="${1:-}"
+        [[ -f "$target" ]] || { echo "Wallpaper file not found: $target"; exit 1; }
+        if [[ "$target" =~ \.(mp4|mkv|webm)$ ]]; then
+            set_video "$target"
+        elif [[ "$target" =~ \.gif$ ]]; then
+            set_gif "$target"
+        else
+            set_static "$target"
+        fi
+        ;;
     static)
         shift
         set_static "${1:-}"

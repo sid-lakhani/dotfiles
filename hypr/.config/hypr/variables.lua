@@ -138,6 +138,7 @@ return {
     kbVolumeMute               = "SUPER + SHIFT + M",
 
     -- Misc
+    kbWallpaperPicker          = "SUPER + B",
     kbLauncher                 = "SUPER + SUPER_L",
     kbSession                  = "CTRL + ALT + Delete",
     kbShowSidebar              = "SUPER + N",
