@@ -309,6 +309,23 @@ def puntuar(pal, objetivos, fondo, croma_tema) -> float:
 
 
 TYPE_AFFINITY = {
+    "monochrome": {
+        92, 93, 94,       # Gastly, Haunter, Gengar (shadow ghosts)
+        197, 198,         # Umbreon, Murkrow (black dark types)
+        228, 229,         # Houndour, Houndoom (black demon dogs)
+        302,              # Sableye (dark ghost)
+        355, 356, 477,    # Duskull, Dusclops, Dusknoir (reaper ghosts)
+        359,              # Absol (dark scythe blade)
+        430,              # Honchkrow (big black boss crow)
+        442,              # Spiritomb (dark phantom)
+        461,              # Weavile (dark assassin)
+        491,              # Darkrai (pure pitch shadow nightmare)
+        571,              # Zoroark (black & crimson shadow fox)
+        609,              # Chandelure (black & ghost fire)
+        104, 105,         # Cubone, Marowak (dark bone mask)
+        95,               # Onix (obsidian giant rock snake)
+        150,              # Mewtwo (dark psychic legend)
+    },
     "fire": {4, 5, 6, 37, 38, 58, 59, 77, 78, 126, 136, 146},
     "water": {7, 8, 9, 54, 55, 60, 61, 62, 72, 73, 79, 80, 86, 87, 90, 91, 98, 99, 116, 117, 118, 119, 120, 121, 129, 130, 131, 134, 138, 139, 140, 141},
     "grass": {1, 2, 3, 10, 11, 12, 13, 14, 15, 43, 44, 45, 46, 47, 48, 49, 69, 70, 71, 102, 103, 114, 123, 127},
@@ -320,6 +337,26 @@ TYPE_AFFINITY = {
 
 def detectar_vibe() -> str | None:
     import colorsys
+    from PIL import Image
+
+    # 1. Direct wallpaper image saturation check (most reliable ground truth)
+    for state_file in ["path.txt", "live_path.txt"]:
+        sp = HOME / ".local" / "state" / "caelestia" / "wallpaper" / state_file
+        if sp.exists():
+            try:
+                w_img = Path(sp.read_text().strip())
+                if w_img.exists():
+                    im = Image.open(w_img)
+                    if getattr(im, "is_animated", False):
+                        im.seek(0)
+                    im = im.convert("RGB")
+                    im.thumbnail((64, 64), Image.Resampling.NEAREST)
+                    img_sats = [colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)[1] for r, g, b in im.getdata()]
+                    if (sum(img_sats) / len(img_sats)) < 0.15:
+                        return "monochrome"
+            except Exception:
+                pass
+
     colores_hex = []
     if WAL.exists():
         try:
@@ -339,18 +376,23 @@ def detectar_vibe() -> str | None:
             except Exception:
                 pass
     if not colores_hex:
-        return None
+        return "monochrome"
 
     hues = []
+    sats = []
     for c in colores_hex:
         c = c.lstrip("#")
         if len(c) == 6:
             r, g, b = int(c[:2], 16)/255, int(c[2:4], 16)/255, int(c[4:6], 16)/255
             h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            sats.append(s)
             if s > 0.15:
                 hues.append(h * 360)
-    if not hues:
-        return None
+
+    # If all palette colors are low-saturation grey/black/white
+    if not hues or (sum(sats) / len(sats) if sats else 0) < 0.12:
+        return "monochrome"
+
     avg_h = sum(hues) / len(hues)
     if avg_h >= 335 or avg_h < 25:
         return "fire"
@@ -382,8 +424,14 @@ def ranking() -> dict[str, list[tuple[float, Path]]]:
         if not ruta.exists():
             continue
         score = puntuar(pal, objetivos, fondo, croma)
-        if num.isdigit() and int(num) in fav_ids:
-            score *= 0.55  # Strong thematic affinity bonus
+        if vibe == "monochrome":
+            if num.isdigit() and int(num) in fav_ids:
+                score *= 0.15  # Massive priority for true dark/ghost/shadow Pokémon VIPs
+            else:
+                chroma_sum = sum(math.hypot(a, b) * w for _, a, b, w in pal)
+                score += 80.0 + (chroma_sum * 3.0)
+        elif num.isdigit() and int(num) in fav_ids:
+            score *= 0.50  # Strong thematic affinity bonus
         fuera.setdefault(tipo, []).append((score, ruta))
     for tipo in fuera:
         fuera[tipo].sort(key=lambda t: t[0])
@@ -398,8 +446,60 @@ def activado() -> bool:
 
 
 def sync_kitty():
-    caelestia_scheme = HOME / ".local" / "state" / "caelestia" / "scheme.json"
+    vibe = detectar_vibe()
     kitty_colors_path = HOME / ".config" / "kitty" / "colors.conf"
+    wal_colors_path = HOME / ".cache" / "wal" / "colors.json"
+    wal_kitty_path = HOME / ".cache" / "wal" / "colors-kitty.conf"
+
+    if vibe == "monochrome":
+        zinc_palette = [
+            "#09090b", "#3f3f46", "#52525b", "#71717a",
+            "#a1a1aa", "#d4d4d8", "#e4e4e7", "#fafafa",
+            "#27272a", "#52525b", "#71717a", "#a1a1aa",
+            "#d4d4d8", "#e4e4e7", "#f4f4f5", "#ffffff"
+        ]
+        conf = [
+            "# Dynamically generated from active wallpaper scheme (pure monochrome)",
+            "background #09090b",
+            "foreground #fafafa",
+            "cursor #fafafa",
+            "cursor_text_color #09090b",
+            "selection_background #3f3f46",
+            "selection_foreground #fafafa",
+            ""
+        ]
+        for i, c in enumerate(zinc_palette):
+            conf.append(f"color{i} {c}")
+        full_conf = "\n".join(conf) + "\n"
+        kitty_colors_path.write_text(full_conf)
+        wal_kitty_path.parent.mkdir(parents=True, exist_ok=True)
+        wal_kitty_path.write_text(full_conf)
+
+        wal_json = {
+            "special": {"background": "#09090b", "foreground": "#fafafa", "cursor": "#fafafa"},
+            "colors": {f"color{i}": c for i, c in enumerate(zinc_palette)}
+        }
+        wal_colors_path.write_text(json.dumps(wal_json, indent=4))
+
+        # Broadcast ANSI sequence to all active pts terminals
+        ansi_seq = (
+            "\x1b]10;rgb:fa/fa/fa\x1b\\" +
+            "\x1b]11;rgb:09/09/0b\x1b\\" +
+            "\x1b]12;rgb:fa/fa/fa\x1b\\" +
+            "".join(f"\x1b]4;{i};rgb:{c[1:3]}/{c[3:5]}/{c[5:7]}\x1b\\" for i, c in enumerate(zinc_palette))
+        )
+        for pt in Path("/dev/pts").glob("[0-9]*"):
+            try:
+                fd = os.open(str(pt), os.O_WRONLY | os.O_NONBLOCK | os.O_NOCTTY)
+                os.write(fd, ansi_seq.encode())
+                os.close(fd)
+            except Exception:
+                pass
+
+        subprocess.run(["pkill", "-SIGUSR1", "-x", "kitty"], stderr=subprocess.DEVNULL)
+        return
+
+    caelestia_scheme = HOME / ".local" / "state" / "caelestia" / "scheme.json"
     if caelestia_scheme.exists():
         try:
             data = json.loads(caelestia_scheme.read_text())

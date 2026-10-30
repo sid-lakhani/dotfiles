@@ -252,9 +252,106 @@ sync_terminal_theme() {
     if [[ -z "$wall_img" && -f "$HOME/.local/state/caelestia/wallpaper/path.txt" ]]; then
         wall_img=$(cat "$HOME/.local/state/caelestia/wallpaper/path.txt")
     fi
-    if [[ -n "$wall_img" && -f "$wall_img" ]] && command -v wal >/dev/null 2>&1; then
-        wal -i "$wall_img" --saturate 0.6 -n -q -s -t 2>/dev/null || true
+    if [[ -z "$wall_img" && -f "$HOME/.local/state/caelestia/wallpaper/live_path.txt" ]]; then
+        wall_img=$(cat "$HOME/.local/state/caelestia/wallpaper/live_path.txt")
     fi
+
+    # Smart palette sync: detects monochrome vs vibrant wallpapers
+    python3 - "${wall_img:-}" << 'PY' >/dev/null 2>&1 || true
+import json
+import sys
+from pathlib import Path
+from PIL import Image
+import colorsys
+import subprocess
+
+img_path = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else ""
+HOME = Path.home()
+wal_dir = HOME / ".cache" / "wal"
+wal_dir.mkdir(parents=True, exist_ok=True)
+
+is_mono = False
+if img_path and Path(img_path).is_file():
+    try:
+        im = Image.open(img_path)
+        if getattr(im, "is_animated", False):
+            im.seek(0)
+        im = im.convert("RGB")
+        im.thumbnail((64, 64), Image.NEAREST)
+        colors = im.getcolors(64 * 64) or []
+        if colors:
+            total = sum(c[0] for c in colors)
+            sat_sum = sum(colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)[1] * count for count, (r, g, b) in colors)
+            if (sat_sum / total) < 0.16:
+                is_mono = True
+    except Exception:
+        pass
+
+if is_mono:
+    try:
+        from caelestia.utils.scheme import get_scheme
+        from caelestia.utils.theme import apply_colours
+        scheme = get_scheme()
+        scheme.variant = "monochrome"
+        scheme.mode = "dark"
+        scheme.update_colours()
+        apply_colours(scheme.colours, scheme.mode)
+    except Exception:
+        pass
+    colors_json = {
+        "wallpaper": img_path,
+        "alpha": "100",
+        "special": {
+            "background": "#09090b",
+            "foreground": "#fafafa",
+            "cursor": "#fafafa"
+        },
+        "colors": {
+            "color0": "#09090b",
+            "color1": "#3f3f46",
+            "color2": "#52525b",
+            "color3": "#71717a",
+            "color4": "#a1a1aa",
+            "color5": "#d4d4d8",
+            "color6": "#e4e4e7",
+            "color7": "#fafafa",
+            "color8": "#27272a",
+            "color9": "#52525b",
+            "color10": "#71717a",
+            "color11": "#a1a1aa",
+            "color12": "#d4d4d8",
+            "color13": "#e4e4e7",
+            "color14": "#f4f4f5",
+            "color15": "#ffffff"
+        }
+    }
+    (wal_dir / "colors.json").write_text(json.dumps(colors_json, indent=4))
+    kitty_lines = [
+        "foreground   #fafafa",
+        "background   #09090b",
+        "cursor       #fafafa",
+        "",
+        "color0       #09090b",
+        "color8       #27272a",
+        "color1       #3f3f46",
+        "color9       #52525b",
+        "color2       #52525b",
+        "color10      #71717a",
+        "color3       #71717a",
+        "color11      #a1a1aa",
+        "color4       #a1a1aa",
+        "color12      #d4d4d8",
+        "color5       #d4d4d8",
+        "color13      #e4e4e7",
+        "color6       #e4e4e7",
+        "color14      #f4f4f5",
+        "color7       #fafafa",
+        "color15      #ffffff"
+    ]
+    (wal_dir / "colors-kitty.conf").write_text("\n".join(kitty_lines) + "\n")
+elif img_path:
+    subprocess.run(["wal", "-i", img_path, "--saturate", "0.6", "-n", "-q", "-s", "-t"], stderr=subprocess.DEVNULL)
+PY
 
     local wal_kitty="$HOME/.cache/wal/colors-kitty.conf"
     local kitty_conf="$HOME/.config/kitty/colors.conf"
