@@ -8,7 +8,8 @@ return {
     -- Apps
     terminal                   = "kitty",
     browser                    = "firefox",
-    editor                     = "codium",
+    editor                     = "code",
+    antigravity                = "antigravity-ide",
     fileExplorer               = "thunar",
     audioSettings              = "pwvucontrol",
 
@@ -118,6 +119,7 @@ return {
     kbTerminal                 = "SUPER + T",
     kbBrowser                  = "SUPER + W",
     kbEditor                   = "SUPER + C",
+    kbAntigravity              = "SUPER + A",
     kbFileExplorer             = "SUPER + E",
     kbAudioSettings            = "CTRL + ALT + V",
 

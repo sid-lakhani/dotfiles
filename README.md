@@ -12,7 +12,7 @@ Managed modularly with [GNU Stow](https://www.gnu.org/software/stow/).
 - **Desktop Shell:** [Caelestia](https://github.com/caelestia-dots/caelestia) (Quickshell) providing a native Wayland status bar, system tray, quick settings, and notification center.
 - **Terminal Stack:** [Kitty](https://sw.kovidgoyal.net/kitty/) with GPU rendering and Kitty Graphics Protocol; fallback support for [Foot](https://codeberg.org/dnkl/foot).
 - **Shells & Prompt:** Zsh and Fish configured with Starship prompt, syntax highlighting, and auto-suggestions.
-- **Dynamic Theming:** Custom wallpaper engine with Quickshell picker (`Super + B`), supporting live video (`.mp4`), animated GIFs, and static imagery. Automatically extracts Material You and Pywal palettes, syncing colors across Hyprland borders, GTK, Caelestia, and terminal windows in real time.
+- **Dynamic Theming:** Custom wallpaper engine with Quickshell picker (`Super + B`), supporting live video (`.mp4`), animated GIFs, and static imagery. Automatically extracts Material You and Pywal palettes, syncing colors across Hyprland borders, GTK, Caelestia, terminal windows, and code editors (VS Code & Antigravity IDE) in real time.
 - **Terminal Polish:** Fastfetch system summary with dynamic color dots and optional theme-matched sprite companions (`pokefetch`).
 - **Launcher:** [Fuzzel](https://codeberg.org/dnkl/fuzzel) styled with the active wallpaper scheme.
 
@@ -43,7 +43,8 @@ dotfiles/
 
 ## Core Utilities
 
-- **`wallpaper`**: Manages static, GIF, and video wallpapers. Coordinates `awww` transitions, `mpvpaper` playback, system palette syncing, and monochrome zinc themes.
+- **`wallpaper`**: Manages static, GIF, and video wallpapers. Coordinates `awww` transitions, `mpvpaper` playback, and system palette syncing.
+- **`extract-palette`**: Chroma-weighted palette extractor synthesizing Material You and 16-color ANSI themes from wallpaper accents.
 - **`wall-thumbs`**: Multi-threaded thumbnail generator caching previews for the wallpaper picker.
 - **`check-updates`**: Background Arch package update monitor for pacman and AUR packages.
 - **`pokefetch`**: Terminal sysfetch displaying system metrics alongside theme-aware animated sprites. Run `poke-sprites` to download the sprite library.
@@ -57,6 +58,8 @@ dotfiles/
 | `Super + Return` | Spawn Kitty terminal |
 | `Super + Space` | Open application launcher (Fuzzel) |
 | `Super + B` | Open wallpaper picker |
+| `Super + C` | Launch VS Code |
+| `Super + A` | Launch Antigravity IDE |
 | `Super + Shift + Q` | Close active window |
 | `Super + Shift + F` | Toggle fullscreen |
 | `Super + 1..9` | Switch to workspace |

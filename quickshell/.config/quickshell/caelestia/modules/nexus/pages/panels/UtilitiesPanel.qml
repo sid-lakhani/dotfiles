@@ -9,6 +9,8 @@ PageBase {
 
     function isToggleOn(id: string): bool {
         const item = Config.utilities.quickToggles.values.find(t => t.id === id);
+        if (id === "darkMode" && item === undefined)
+            return true;
         return item?.enabled ?? false;
     }
 
@@ -131,6 +133,14 @@ PageBase {
             disabled: !Config.utilities.cards.quickToggles
             checked: root.isToggleOn("dnd")
             onToggled: root.setToggleOn("dnd", checked)
+        }
+
+        ToggleRow {
+            text: qsTr("Dark theme")
+            subtext: qsTr("Toggle dark and light theme")
+            disabled: !Config.utilities.cards.quickToggles
+            checked: root.isToggleOn("darkMode")
+            onToggled: root.setToggleOn("darkMode", checked)
         }
 
         ToggleRow {

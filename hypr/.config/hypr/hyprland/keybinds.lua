@@ -161,6 +161,7 @@ create_bind(vars.kbTodoWs, fn.toggle("todo"))
 create_bind(vars.kbTerminal, hl.dsp.exec_cmd(vars.terminal))
 create_bind(vars.kbBrowser, hl.dsp.exec_cmd(vars.browser))
 create_bind(vars.kbEditor, hl.dsp.exec_cmd(vars.editor))
+create_bind(vars.kbAntigravity, hl.dsp.exec_cmd(vars.antigravity))
 create_bind(vars.kbFileExplorer, hl.dsp.exec_cmd(vars.fileExplorer))
 create_bind(vars.kbAudioSettings, hl.dsp.exec_cmd(vars.audioSettings))
 

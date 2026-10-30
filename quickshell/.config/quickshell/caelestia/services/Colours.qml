@@ -66,9 +66,9 @@ Singleton {
         if (!isPreview) {
             root.scheme = scheme.name;
             flavour = scheme.flavour;
-            currentLight = false;
+            currentLight = scheme.mode === "light";
         } else {
-            previewLight = false;
+            previewLight = scheme.mode === "light";
         }
 
         for (const [name, colour] of Object.entries(scheme.colours)) {

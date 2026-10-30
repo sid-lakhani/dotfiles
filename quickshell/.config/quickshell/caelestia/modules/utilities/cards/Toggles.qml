@@ -19,25 +19,54 @@ StyledRect {
 
     readonly property var quickToggles: {
         const seenIds = new Set();
+        const list = [];
+        let hasDarkMode = false;
 
-        return Config.utilities.quickToggles.values.filter(item => {
-            if (!item.enabled)
-                return false;
+        for (const item of Config.utilities.quickToggles.values) {
+            if (!item.enabled || seenIds.has(item.id))
+                continue;
 
-            if (seenIds.has(item.id)) {
-                return false;
-            }
+            if (item.id === "vpn" && GlobalConfig.utilities.vpn.selectedProvider.length === 0)
+                continue;
 
-            if (item.id === "vpn") {
-                return GlobalConfig.utilities.vpn.selectedProvider.length > 0;
+            if (item.id === "darkMode") {
+                hasDarkMode = true;
             }
 
             seenIds.add(item.id);
-            return true;
-        });
+            list.push(item);
+        }
+
+        // Add Dark / Light mode toggle if not already explicitly in list
+        if (!hasDarkMode) {
+            const micIdx = list.findIndex(item => item.id === "mic");
+            const insertIdx = micIdx !== -1 ? micIdx + 1 : Math.min(3, list.length);
+            list.splice(insertIdx, 0, { id: "darkMode", enabled: true });
+        }
+
+        return list;
     }
-    readonly property int splitIndex: Math.ceil(quickToggles.length / 2)
-    readonly property bool needExtraRow: quickToggles.length > 6
+
+    readonly property var toggleRows: {
+        const rows = [];
+        const items = root.quickToggles;
+        const perRow = 4;
+
+        for (let i = 0; i < items.length; i += perRow) {
+            const chunk = items.slice(i, i + perRow);
+            // Pad the trailing row with spacers when there are multiple rows so all buttons match the 4-column width above
+            if (chunk.length > 0 && chunk.length < perRow && items.length > perRow) {
+                const padded = chunk.slice();
+                while (padded.length < perRow) {
+                    padded.push({ id: "spacer", enabled: true });
+                }
+                rows.push(padded);
+            } else {
+                rows.push(chunk);
+            }
+        }
+        return rows;
+    }
 
     implicitHeight: layout.implicitHeight + Tokens.padding.extraLargeIncreased
 
@@ -56,13 +85,13 @@ StyledRect {
             font: Tokens.font.body.medium
         }
 
-        QuickToggleRow {
-            model: root.needExtraRow ? root.quickToggles.slice(0, root.splitIndex) : root.quickToggles
-        }
+        Repeater {
+            model: root.toggleRows
 
-        QuickToggleRow {
-            visible: root.needExtraRow
-            model: root.needExtraRow ? root.quickToggles.slice(root.splitIndex) : []
+            QuickToggleRow {
+                required property var modelData
+                model: modelData
+            }
         }
     }
 
@@ -147,6 +176,21 @@ StyledRect {
                         isToggle: VPN.status.state !== "needs-auth" && VPN.status.state !== "error"
                         inactiveOnColour: Colours.palette.m3onSurfaceVariant
                         onClicked: VPN.toggle()
+                    }
+                }
+                DelegateChoice {
+                    roleValue: "darkMode"
+                    delegate: Toggle {
+                        icon: Colours.light ? "light_mode" : "dark_mode"
+                        checked: !Colours.light
+                        onClicked: Colours.setMode(Colours.light ? "dark" : "light")
+                    }
+                }
+                DelegateChoice {
+                    roleValue: "spacer"
+                    delegate: Item {
+                        property bool fillWidth: true
+                        implicitHeight: 1
                     }
                 }
             }

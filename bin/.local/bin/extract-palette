@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+"""
+Vibrancy-Weighted Chroma & Salience Palette Engine for Caelestia & Terminal.
+Extracts vibrant accents from wallpapers (even predominantly dark ones),
+seeds Material You for Caelestia and generates rich 16-color ANSI palettes.
+"""
+
+import sys
+import json
+import os
+import colorsys
+import subprocess
+from pathlib import Path
+from PIL import Image
+
+def get_target_image(path_str):
+    p = Path(path_str).resolve()
+    if p.suffix.lower() == ".gif":
+        from caelestia.utils import wallpaper
+        return wallpaper.convert_gif(p)
+    elif p.suffix.lower() in [".mp4", ".mkv", ".webm"]:
+        thumb = p.parent / ".thumbnails" / f"{p.stem}.jpg"
+        if thumb.exists():
+            return thumb
+    return p
+
+def extract_vibrant_spots(img_path):
+    target = get_target_image(img_path)
+    if not target.is_file():
+        return []
+    
+    im = Image.open(target).convert("RGB")
+    im.thumbnail((128, 128), Image.Resampling.LANCZOS)
+    raw = im.getcolors(128 * 128) or []
+    
+    # 24 hue buckets (15 deg each)
+    buckets = {}
+    for count, (r, g, b) in raw:
+        h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+        # Discard void (v < 0.12) and washed-out highlights (s < 0.10, v > 0.94)
+        if s >= 0.14 and v >= 0.12 and not (s < 0.10 and v > 0.94):
+            b_idx = int(h * 24) % 24
+            if b_idx not in buckets:
+                buckets[b_idx] = {"count": 0, "s_sum": 0.0, "v_sum": 0.0, "pixels": []}
+            bucket = buckets[b_idx]
+            bucket["count"] += count
+            bucket["s_sum"] += s * count
+            bucket["v_sum"] += v * count
+            bucket["pixels"].append((count, r, g, b, h, s, v))
+            
+    scored = []
+    for b_idx, b_info in buckets.items():
+        cnt = b_info["count"]
+        avg_s = b_info["s_sum"] / cnt
+        avg_v = b_info["v_sum"] / cnt
+        # Salience: count^0.35 * s^1.8 * v^0.9
+        salience = (cnt ** 0.35) * (avg_s ** 1.8) * (avg_v ** 0.9)
+        # Choose representative pixel with good saturation and value
+        rep = max(b_info["pixels"], key=lambda p: p[5] * 0.6 + p[6] * 0.4)
+        scored.append({
+            "salience": salience,
+            "bucket": b_idx,
+            "avg_s": avg_s,
+            "avg_v": avg_v,
+            "rgb": (rep[1], rep[2], rep[3]),
+            "hsv": (rep[4], rep[5], rep[6]),
+            "count": cnt,
+            "hex": f"#{rep[1]:02x}{rep[2]:02x}{rep[3]:02x}"
+        })
+        
+    scored.sort(key=lambda x: x["salience"], reverse=True)
+    return scored
+
+def adapt_caelestia(img_path):
+    """Seed Caelestia with the vibrant dominant accent."""
+    from materialyoucolor.utils.color_utils import argb_from_rgb
+    from caelestia.utils import paths, wallpaper
+    from caelestia.utils.scheme import get_scheme
+    
+    target = get_target_image(img_path)
+    if not target.is_file():
+        return
+        
+    cache = wallpaper.wallpapers_cache_dir / paths.compute_hash(target)
+    cache.mkdir(parents=True, exist_ok=True)
+    
+    scored = extract_vibrant_spots(target)
+    
+    # If image has chromatic accents
+    if scored and scored[0]["salience"] > 0.01 and scored[0]["avg_s"] >= 0.14:
+        dom = scored[0]
+        r, g, b = dom["rgb"]
+        argb = argb_from_rgb(r, g, b)
+        
+        # Write score.json so Caelestia uses this exact seed
+        (cache / "score.json").write_text(str(argb))
+        variant = "vibrant"
+    else:
+        variant = "neutral"
+        
+    scheme = get_scheme()
+    mode = scheme.mode if scheme.mode in ["dark", "light"] else "dark"
+    (cache / "smart.json").write_text(json.dumps({"mode": mode, "variant": variant}))
+    
+    scheme.mode = mode
+    scheme.variant = variant
+    scheme.save()
+
+def generate_ansi_palette(img_path):
+    """Generate vibrant 16-color ANSI palette for Kitty, Pywal, Fastfetch, Pokefetch."""
+    target = get_target_image(img_path)
+    scored = extract_vibrant_spots(target) if target.is_file() else []
+    
+    is_mono = not scored or scored[0]["salience"] <= 0.01 or scored[0]["avg_s"] < 0.14
+    
+    if is_mono:
+        # High-contrast Cyberpunk Obsidian palette for pure B&W wallpapers
+        return {
+            "wallpaper": str(target),
+            "alpha": "100",
+            "special": {
+                "background": "#09090b",
+                "foreground": "#fafafa",
+                "cursor": "#64d2ff"
+            },
+            "colors": {
+                "color0": "#09090b",
+                "color8": "#27272a",
+                "color1": "#ff453a",
+                "color9": "#ff6961",
+                "color2": "#30d158",
+                "color10": "#34c759",
+                "color3": "#ffd60a",
+                "color11": "#ffe600",
+                "color4": "#0a84ff",
+                "color12": "#409cff",
+                "color5": "#bf5af2",
+                "color13": "#da8fff",
+                "color6": "#64d2ff",
+                "color14": "#8ce0ff",
+                "color7": "#fafafa",
+                "color15": "#ffffff"
+            }
+        }
+        
+    dom = scored[0]
+    r, g, b = dom["rgb"]
+    dh, ds, dv = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+    
+    target_s = max(0.55, min(0.88, ds * 1.35))
+    target_v = max(0.68, min(0.95, dv * 1.25))
+    
+    # 6 canonical ANSI hues:
+    # 1: Red (355°), 2: Green (125°), 3: Yellow (45°), 4: Blue (215°), 5: Magenta (290°), 6: Cyan (180°)
+    hues = [355 / 360.0, 125 / 360.0, 45 / 360.0, 215 / 360.0, 290 / 360.0, 180 / 360.0]
+    
+    # Check if any other extracted cluster matches a semantic hue
+    for i, h in enumerate(hues):
+        for c in scored:
+            ch = c["hsv"][0]
+            diff = min(abs(ch - h), 1.0 - abs(ch - h))
+            if diff < 0.10: # within ~36 deg
+                hues[i] = ch
+                break
+                
+    # Lock dominant hue to closest index
+    closest_idx = min(range(6), key=lambda i: min(abs(hues[i] - dh), 1.0 - abs(hues[i] - dh)))
+    hues[closest_idx] = dh
+    
+    bg_surface = "#0a0a0d"
+    fg_text = "#e4e4e7"
+    
+    colors = {
+        "color0": bg_surface,
+        "color8": "#27272a",
+        "color7": fg_text,
+        "color15": "#ffffff"
+    }
+    
+    for i, h in enumerate(hues, start=1):
+        nr, ng, nb = colorsys.hsv_to_rgb(h, target_s, target_v)
+        colors[f"color{i}"] = f"#{int(nr * 255):02x}{int(ng * 255):02x}{int(nb * 255):02x}"
+        
+        br, bg, bb = colorsys.hsv_to_rgb(h, max(0.35, target_s - 0.15), min(1.0, target_v + 0.15))
+        colors[f"color{i + 8}"] = f"#{int(br * 255):02x}{int(bg * 255):02x}{int(bb * 255):02x}"
+        
+    return {
+        "wallpaper": str(target),
+        "alpha": "100",
+        "special": {
+            "background": bg_surface,
+            "foreground": fg_text,
+            "cursor": colors["color4"]
+        },
+        "colors": colors
+    }
+
+def sync_terminal(img_path):
+    """Write terminal colors, reload Kitty, and trigger poke-theme ranking."""
+    palette = generate_ansi_palette(img_path)
+    
+    home = Path.home()
+    wal_dir = home / ".cache" / "wal"
+    wal_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 1. Write ~/.cache/wal/colors.json (read by poke-theme, fastfetch, pywal)
+    (wal_dir / "colors.json").write_text(json.dumps(palette, indent=4))
+    
+    # 2. Write colors-kitty.conf
+    c = palette["colors"]
+    kitty_lines = [
+        f"foreground   {palette['special']['foreground']}",
+        f"background   {palette['special']['background']}",
+        f"cursor       {palette['special']['cursor']}",
+        ""
+    ]
+    for i in range(16):
+        kitty_lines.append(f"color{i:<7}  {c[f'color{i}']}")
+        
+    kitty_conf = home / ".config" / "kitty" / "colors.conf"
+    kitty_conf.parent.mkdir(parents=True, exist_ok=True)
+    kitty_conf.write_text("\n".join(kitty_lines) + "\n")
+    
+    # 3. Reload kitty live via SIGUSR1
+    subprocess.run(["pkill", "-SIGUSR1", "-x", "kitty"], stderr=subprocess.DEVNULL)
+    
+    # 4. Trigger poke-theme rank
+    poke_theme = home / ".local" / "bin" / "poke-theme"
+    if poke_theme.is_file() and os.access(poke_theme, os.X_OK):
+        subprocess.Popen([str(poke_theme), "rank"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: extract-palette <adapt|sync|json> <image_path>")
+        sys.exit(1)
+        
+    cmd = sys.argv[1]
+    wall_target = sys.argv[2]
+    
+    if cmd == "adapt":
+        adapt_caelestia(wall_target)
+    elif cmd == "sync":
+        sync_terminal(wall_target)
+    elif cmd == "json":
+        print(json.dumps(generate_ansi_palette(wall_target), indent=4))
