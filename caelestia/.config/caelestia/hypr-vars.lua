@@ -1,6 +1,6 @@
 return {
     -- Apps
-    terminal = "foot",
+    terminal = "kitty",
     browser = "firefox",
     editor = "code",
     fileExplorer = "thunar",

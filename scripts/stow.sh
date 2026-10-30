@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 packages=(
-  bin quickshell caelestia fish zsh hypr foot fuzzel
+  bin quickshell caelestia fish zsh hypr foot kitty fuzzel
   fastfetch btop nvim gtk wallpapers
 )
 

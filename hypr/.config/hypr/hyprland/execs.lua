@@ -27,6 +27,9 @@ hl.on("hyprland.start", function()
 
     -- Start shell
     hl.exec_cmd("caelestia shell -d")
+
+    -- Random live or image wallpaper on startup
+    hl.exec_cmd("wallpaper random")
 end)
 
 -- Resizer listeners

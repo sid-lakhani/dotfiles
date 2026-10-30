@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Pokéfetch — High-craft, theme-aware Pokémon fetch banner for Caelestia Desktop."""
+
+import json
+import os
+import random
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+ART_DIR = HOME / ".cache" / "pokeart"
+ANIM_DIR = HOME / ".cache" / "pokeanim"
+BOX_DIR = ANIM_DIR / ".box"
+CACHE_DIR = HOME / ".cache" / "pokepalette"
+RANK_PNG = CACHE_DIR / "rank-png.txt"
+RANK_GIF = CACHE_DIR / "rank-gif.txt"
+POKE_THEME = HOME / ".local" / "bin" / "poke-theme"
+
+COMMON_POKEMON = {
+    "bulbasaur": 1, "ivysaur": 2, "venusaur": 3,
+    "charmander": 4, "charmeleon": 5, "charizard": 6,
+"squirtle": 7, "wartortle": 8, "blastoise": 9,
+    "caterpie": 10, "metapod": 11, "butterfree": 12,
+    "weedle": 13, "kakuna": 14, "beedrill": 15,
+    "pidgey": 16, "pidgeotto": 17, "pidgeot": 18,
+    "rattata": 19, "raticate": 20, "spearow": 21, "fearow": 22,
+    "ekans": 23, "arbok": 24, "pikachu": 25, "raichu": 26,
+    "sandshrew": 27, "sandslash": 28, "nidoran": 29, "nidoqueen": 31,
+    "nidoking": 34, "clefairy": 35, "clefable": 36, "vulpix": 37,
+    "ninetales": 38, "jigglypuff": 39, "wigglytuff": 40, "zubat": 41,
+    "golbat": 42, "oddish": 43, "gloom": 44, "vileplume": 45,
+    "diglett": 50, "dugtrio": 51, "meowth": 52, "persian": 53,
+    "psyduck": 54, "golduck": 55, "mankey": 56, "primeape": 57,
+    "growlithe": 58, "arcanine": 59, "poliwag": 60, "poliwhirl": 61,
+    "poliwrath": 62, "abra": 63, "kadabra": 64, "alakazam": 65,
+    "machop": 66, "machoke": 67, "machamp": 68,
+    "geodude": 74, "graveler": 75, "golem": 76,
+    "slowpoke": 79, "slowbro": 80, "magnemite": 81, "magneton": 82,
+    "gastly": 92, "haunter": 93, "gengar": 94, "onix": 95,
+    "cubone": 104, "marowak": 105, "hitmonlee": 106, "hitmonchan": 107,
+    "koffing": 109, "weezing": 110, "rhyhorn": 111, "rhydon": 112,
+    "chansey": 113, "scyther": 123, "electabuzz": 125, "magmar": 126,
+    "pinsir": 127, "tauros": 128, "magikarp": 129, "gyarados": 130,
+    "lapras": 131, "ditto": 132, "eevee": 133, "vaporeon": 134,
+    "jolteon": 135, "flareon": 136, "porygon": 137, "aerodactyl": 142,
+    "snorlax": 143, "articuno": 144, "zapdos": 145, "moltres": 146,
+    "dratini": 147, "dragonair": 148, "dragonite": 149,
+    "mewtwo": 150, "mew": 151,
+}
+
+
+def is_kitty_terminal() -> bool:
+    """Detect if running inside Kitty or Kitten CLI is functional."""
+    if os.environ.get("KITTY_PID") or os.environ.get("TERM") == "xterm-kitty":
+        return shutil.which("kitten") is not None
+    return False
+
+
+def pick_themed_pokemon(kind: str = "png") -> Path | None:
+    """Pick a Pokémon biased by how well its colors match the active wallpaper/theme."""
+    target_rank = RANK_GIF if kind == "gif" else RANK_PNG
+    if target_rank.exists():
+        try:
+            lines = [l.strip() for l in target_rank.read_text().splitlines() if l.strip()]
+            if lines:
+                # Top 12 matches biased by theme
+                top_pool = lines[:min(12, len(lines))]
+                chosen = random.choice(top_pool)
+                p = Path(chosen)
+                if p.is_file():
+                    return p
+        except Exception:
+            pass
+
+    if POKE_THEME.exists():
+        try:
+            out = subprocess.check_output([str(POKE_THEME), "pick", kind], stderr=subprocess.DEVNULL, timeout=2).decode().strip()
+            if out and Path(out).is_file():
+                return Path(out)
+        except Exception:
+            pass
+
+    return None
+
+
+def resolve_pokemon_id(arg: str | None) -> int | None:
+    if not arg:
+        return None
+    arg = arg.strip().lower()
+    if arg.isdigit():
+        return int(arg)
+    if arg in COMMON_POKEMON:
+        return COMMON_POKEMON[arg]
+    return None
+
+
+def render_kitty(gif_path: Path):
+    """Render animated looping GIF via Kitty Graphics Protocol."""
+    BOX_DIR.mkdir(parents=True, exist_ok=True)
+    box_file = BOX_DIR / f"{gif_path.stem}_lg.gif"
+
+    # Scale up sprite cleanly with nearest neighbor for crisp pixel art
+    if not box_file.is_file():
+        if shutil.which("ffmpeg"):
+            subprocess.run([
+                "ffmpeg", "-y", "-i", str(gif_path),
+                "-filter_complex",
+                "fps=15,scale=w=260:h=220:force_original_aspect_ratio=decrease:flags=neighbor,format=rgba,pad=260:ih:(260-iw)/2:0:color=#00000000,split[s0][s1];[s0]palettegen=reserve_transparent=1[p];[s1][p]paletteuse=alpha_threshold=128:diff_mode=none",
+                "-gifflags", "-offsetting",
+                str(box_file)
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif shutil.which("magick"):
+            subprocess.run([
+                "magick", str(gif_path), "-coalesce", "-filter", "point", "-resize", "260x220", str(box_file)
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    play_target = box_file if box_file.is_file() else gif_path
+
+    try:
+        out = subprocess.check_output(["fastfetch", "--pipe", "false", "--logo", "none"], stderr=subprocess.DEVNULL).decode()
+        lines = [l for l in out.splitlines() if l.strip()]
+    except Exception:
+        subprocess.run(["fastfetch"])
+        return
+
+    indent = 38
+    sys.stdout.write("\0337")      # Save cursor position
+    sys.stdout.write("\033[?7l")    # Disable autowrap
+    for line in lines:
+        sys.stdout.write(f"{' ' * indent}{line}\n")
+    sys.stdout.write("\033[?7h")    # Enable autowrap
+    sys.stdout.write("\0338")      # Restore cursor position
+    sys.stdout.write("\033[1B")    # Center sprite vertically
+    sys.stdout.flush()
+
+    subprocess.run(["kitten", "icat", "--align", "left", "--loop", "-1", str(play_target)], stderr=subprocess.DEVNULL)
+
+    sys.stdout.write("\0338")      # Restore cursor to top
+    sys.stdout.write(f"\033[{len(lines) + 1}B\n")  # Move down past the card
+    sys.stdout.flush()
+
+
+def render_chafa(sprite_path: Path):
+    """Render static pixel art via Chafa with clean border-safe alignment."""
+    try:
+        raw_logo = subprocess.check_output([
+            "chafa",
+            "-c", "full",
+            "--format", "symbols",
+            "--symbols", "block+sextant+octant+half+quad+space",
+            "--dither", "none",
+            "-w", "9",
+            "--size", "28x14",
+            str(sprite_path),
+        ], stderr=subprocess.DEVNULL).decode("utf-8")
+    except Exception:
+        subprocess.run(["fastfetch"])
+        return
+
+    # Strip raw terminal cursor toggles that break Fastfetch column calculation
+    clean_lines = []
+    for line in raw_logo.splitlines():
+        cleaned = line.replace("\x1b[?25h", "").replace("\x1b[?25l", "")
+        if cleaned.strip():
+            clean_lines.append(cleaned)
+
+    cleaned_logo = "\n".join(clean_lines)
+
+    fastfetch_cmd = [
+        "fastfetch",
+        "--logo-type", "data-raw",
+        "--logo", cleaned_logo,
+        "--logo-width", "30",
+        "--logo-padding-right", "3",
+    ]
+    subprocess.run(fastfetch_cmd)
+
+
+def main():
+    target_id = None
+    if len(sys.argv) > 1 and sys.argv[1] not in ("-h", "--help"):
+        target_id = resolve_pokemon_id(sys.argv[1])
+
+    in_kitty = is_kitty_terminal()
+    sprite_dir = ANIM_DIR if in_kitty else ART_DIR
+    fallback_dir = ART_DIR if in_kitty else ANIM_DIR
+    ext = "*.gif" if in_kitty else "*.png"
+
+    available = list(sprite_dir.glob(ext))
+    if not available:
+        available = list(fallback_dir.glob("*.*"))
+
+    if not available:
+        subprocess.run(["fastfetch"])
+        return
+
+    selected_sprite = None
+
+    # 1. CLI target (e.g. pokefetch gengar or pokefetch 94)
+    if target_id is not None:
+        cand_anim = ANIM_DIR / f"{target_id}.gif"
+        cand_art = ART_DIR / f"{target_id}.png"
+        if in_kitty and cand_anim.is_file():
+            selected_sprite = cand_anim
+        elif cand_art.is_file():
+            selected_sprite = cand_art
+        elif cand_anim.is_file():
+            selected_sprite = cand_anim
+
+    # 2. Pinned via Environment variable (e.g. POKE_FIJO=94)
+    if not selected_sprite:
+        fijo = os.environ.get("POKE_FIJO")
+        if fijo:
+            fid = resolve_pokemon_id(fijo)
+            if fid:
+                cand = (ANIM_DIR if in_kitty else ART_DIR) / (f"{fid}.gif" if in_kitty else f"{fid}.png")
+                if cand.is_file():
+                    selected_sprite = cand
+
+    # 3. Dynamic Theme Matching
+    if not selected_sprite:
+        selected_sprite = pick_themed_pokemon("gif" if in_kitty else "png")
+
+    # 4. Fallback random
+    if not selected_sprite:
+        selected_sprite = random.choice(available)
+
+    # Render according to terminal environment
+    if in_kitty and selected_sprite.suffix == ".gif":
+        render_kitty(selected_sprite)
+    else:
+        render_chafa(selected_sprite)
+
+
+if __name__ == "__main__":
+    main()

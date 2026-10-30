@@ -107,6 +107,7 @@ set_caelestia_wallpaper() {
     local enabled="$1"
     if [[ "$enabled" == "true" ]]; then
         set_wallpaper_mode static
+        sync_terminal_theme
     else
         set_wallpaper_mode disabled
     fi
@@ -246,12 +247,34 @@ print(json.dumps({
 PY
 }
 
+sync_terminal_theme() {
+    local wall_img="${1:-}"
+    if [[ -z "$wall_img" && -f "$HOME/.local/state/caelestia/wallpaper/path.txt" ]]; then
+        wall_img=$(cat "$HOME/.local/state/caelestia/wallpaper/path.txt")
+    fi
+    if [[ -n "$wall_img" && -f "$wall_img" ]] && command -v wal >/dev/null 2>&1; then
+        wal -i "$wall_img" --saturate 0.6 -n -q -s -t 2>/dev/null || true
+    fi
+
+    local wal_kitty="$HOME/.cache/wal/colors-kitty.conf"
+    local kitty_conf="$HOME/.config/kitty/colors.conf"
+    if [[ -f "$wal_kitty" ]]; then
+        cp -f "$wal_kitty" "$kitty_conf"
+    fi
+
+    pkill -SIGUSR1 -x kitty 2>/dev/null || true
+    if [[ -x "$HOME/.local/bin/poke-theme" ]]; then
+        "$HOME/.local/bin/poke-theme" rank >/dev/null 2>&1 &
+    fi
+}
+
 set_static() {
     [[ $# -eq 1 && -f "$1" ]] || { usage; exit 1; }
     stop_engines
     adapt_scheme_variant "$1"
     caelestia wallpaper --no-smart -f "$1"
     set_wallpaper_mode static
+    sync_terminal_theme "$1"
 }
 
 set_gif() {
@@ -268,6 +291,7 @@ set_gif() {
         set_wallpaper_mode live
     ) >/dev/null 2>&1 &
     disown
+    sync_terminal_theme "$gif"
 }
 
 set_video() {
@@ -291,6 +315,40 @@ set_video() {
         set_wallpaper_mode live
     ) >/dev/null 2>&1 &
     disown
+    sync_terminal_theme "${thumb:-$vid}"
+}
+
+pick_and_set_random() {
+    stop_engines
+    local wall_base="${CAELESTIA_WALLPAPERS_DIR:-$HOME/pix/wall}"
+    local candidates=()
+
+    # Collect exciting wallpapers from images/ and live/
+    while IFS= read -r f; do
+        [[ -n "$f" ]] && candidates+=("$f")
+    done < <(find "$wall_base/images" "$wall_base/live" -maxdepth 2 -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.webp" -o -name "*.mp4" -o -name "*.webm" -o -name "*.mkv" -o -name "*.gif" \) ! -path "*/.*" 2>/dev/null)
+
+    # Fallback to any file in wall_base if images/live are empty
+    if [[ ${#candidates[@]} -eq 0 ]]; then
+        while IFS= read -r f; do
+            [[ -n "$f" ]] && candidates+=("$f")
+        done < <(find "$wall_base" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.webp" -o -name "*.mp4" -o -name "*.webm" -o -name "*.mkv" -o -name "*.gif" \) ! -path "*/.*" 2>/dev/null)
+    fi
+
+    if [[ ${#candidates[@]} -gt 0 ]]; then
+        local chosen="${candidates[RANDOM % ${#candidates[@]}]}"
+        if [[ "$chosen" =~ \.(mp4|mkv|webm)$ ]]; then
+            set_video "$chosen"
+        elif [[ "$chosen" =~ \.gif$ ]]; then
+            set_gif "$chosen"
+        else
+            set_static "$chosen"
+        fi
+    else
+        caelestia wallpaper --no-smart -r
+        set_wallpaper_mode static
+        sync_terminal_theme
+    fi
 }
 
 resume_wallpaper() {
@@ -315,9 +373,7 @@ resume_wallpaper() {
     if [[ -f "$curr" ]]; then
         set_static "$(cat "$curr")"
     else
-        stop_engines
-        caelestia wallpaper --no-smart -r
-        set_wallpaper_mode static
+        pick_and_set_random
     fi
 }
 
@@ -331,15 +387,7 @@ case "${1:-}" in
         preview_colors "${1:-}"
         ;;
     random)
-        stop_engines
-        caelestia wallpaper --no-smart -r
-        local current_wall
-        current_wall=$(cat "$HOME/.local/state/caelestia/wallpaper/path.txt" 2>/dev/null || echo "")
-        if [[ -f "$current_wall" ]]; then
-            adapt_scheme_variant "$current_wall"
-            caelestia wallpaper --no-smart -f "$current_wall"
-        fi
-        set_wallpaper_mode static
+        pick_and_set_random
         ;;
     gif)
         shift
