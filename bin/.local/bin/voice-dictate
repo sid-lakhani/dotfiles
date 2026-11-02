@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# voice-dictate — smart voice dictation launcher & toggle for Vocalinux
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia"
+STATE_FILE="$STATE_DIR/vocalinux_state"
+mkdir -p "$STATE_DIR"
+
+set_state() {
+    echo "$1" > "$STATE_FILE"
+}
+
+if [[ "$1" == "--kill" || "$1" == "-k" ]]; then
+    pkill -f "vocalinux.main"
+    set_state "stopped"
+    notify-send -u low -i audio-input-microphone "Vocalinux" "Voice dictation daemon stopped"
+    exit 0
+fi
+
+if [[ "$1" == "--status" ]]; then
+    if pgrep -f "vocalinux.main" >/dev/null 2>&1; then
+        cat "$STATE_FILE" 2>/dev/null || echo "running"
+    else
+        echo "stopped"
+    fi
+    exit 0
+fi
+
+if pgrep -f "vocalinux.main" >/dev/null 2>&1; then
+    # Toggle dictation on running instance
+    current_state=$(cat "$STATE_FILE" 2>/dev/null || echo "idle")
+    if [[ "$current_state" == "recording" ]]; then
+        set_state "idle"
+    else
+        set_state "recording"
+    fi
+
+    if ! vocalinux --toggle >/dev/null 2>&1; then
+        set_state "idle"
+    fi
+else
+    # Daemon not running: start it minimized in background and initiate dictation
+    set_state "starting"
+    notify-send -u low -i audio-input-microphone "Vocalinux" "Starting voice dictation..."
+    vocalinux --start-minimized >/dev/null 2>&1 &
+    
+    # Wait for D-Bus registration (~1.2s max), then immediately toggle listening ON
+    for i in {1..30}; do
+        sleep 0.1
+        if vocalinux --toggle >/dev/null 2>&1; then
+            set_state "recording"
+            exit 0
+        fi
+    done
+    set_state "idle"
+fi

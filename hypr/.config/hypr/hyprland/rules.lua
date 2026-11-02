@@ -81,6 +81,7 @@ tagged_rule(float_tag, {
     "com.github.GradienceTeam.Gradience", -- GTK themer (deprecated)
     "feh|imv|swappy",                     -- Image viewers
     "org.quickshell",                     -- Quickshell
+    "vocalinux",                          -- Voice dictation
 }, "class")
 tagged_rule(float_tag, {
     "File (Operation|Upload)( Progress)?", -- File manager operation progress (upload, move, copy, etc)

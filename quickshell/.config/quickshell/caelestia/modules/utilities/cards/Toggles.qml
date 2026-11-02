@@ -2,12 +2,15 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
 import Quickshell.Bluetooth
 import Caelestia.Components
 import Caelestia.Config
 import qs.components
 import qs.components.controls
 import qs.services
+import qs.utils
 import qs.modules.nexus
 import qs.modules.bar.popouts as BarPopouts
 
@@ -17,10 +20,18 @@ StyledRect {
     required property ScreenState screenState
     required property BarPopouts.Wrapper popouts
 
+    FileView {
+        id: voiceStateFile
+        path: `${Paths.state}/vocalinux_state`
+        watchChanges: true
+        printErrors: false
+    }
+
     readonly property var quickToggles: {
         const seenIds = new Set();
         const list = [];
         let hasDarkMode = false;
+        let hasVoice = false;
 
         for (const item of Config.utilities.quickToggles.values) {
             if (!item.enabled || seenIds.has(item.id))
@@ -32,6 +43,9 @@ StyledRect {
             if (item.id === "darkMode") {
                 hasDarkMode = true;
             }
+            if (item.id === "voice") {
+                hasVoice = true;
+            }
 
             seenIds.add(item.id);
             list.push(item);
@@ -42,6 +56,11 @@ StyledRect {
             const micIdx = list.findIndex(item => item.id === "mic");
             const insertIdx = micIdx !== -1 ? micIdx + 1 : Math.min(3, list.length);
             list.splice(insertIdx, 0, { id: "darkMode", enabled: true });
+        }
+
+        // Add Voice dictation toggle if not already explicitly in list
+        if (!hasVoice) {
+            list.push({ id: "voice", enabled: true });
         }
 
         return list;
@@ -184,6 +203,16 @@ StyledRect {
                         icon: Colours.light ? "light_mode" : "dark_mode"
                         checked: !Colours.light
                         onClicked: Colours.setMode(Colours.light ? "dark" : "light")
+                    }
+                }
+                DelegateChoice {
+                    roleValue: "voice"
+                    delegate: Toggle {
+                        icon: "record_voice_over"
+                        checked: voiceStateFile.text().trim() === "recording"
+                        onClicked: {
+                            Quickshell.execDetached(["/home/sidlakhani/.local/bin/voice-dictate"]);
+                        }
                     }
                 }
                 DelegateChoice {

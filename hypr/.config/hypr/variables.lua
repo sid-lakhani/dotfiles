@@ -155,4 +155,5 @@ return {
     kbClipboardDel             = "SUPER + ALT + V",
     kbClipboardPasteLatest     = "CTRL + SHIFT + ALT + V",
     kbEmoji                    = "SUPER + Period",
+    kbVoice                    = "SUPER + SHIFT + V",
 }
