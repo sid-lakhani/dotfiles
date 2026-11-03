@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# power-profile-switch — intelligent CPU & NVIDIA RTX 3050 power controller
+
+PROFILE="$1"
+
+# If no profile provided, cycle to next: power-saver -> balanced -> performance -> power-saver
+if [[ -z "$PROFILE" || "$PROFILE" == "cycle" ]]; then
+    current=$(powerprofilesctl get 2>/dev/null || echo "balanced")
+    case "$current" in
+        performance) PROFILE="power-saver" ;;
+        power-saver) PROFILE="balanced" ;;
+        balanced|*)  PROFILE="performance" ;;
+    esac
+fi
+
+case "$PROFILE" in
+    power-saver|powersave|eco)
+        powerprofilesctl set power-saver >/dev/null 2>&1
+        # Set NVIDIA runtime PM to auto (allows D3cold 0W sleep)
+        if [[ -w /sys/bus/pci/devices/0000:01:00.0/power/control ]]; then
+            echo auto > /sys/bus/pci/devices/0000:01:00.0/power/control 2>/dev/null
+        fi
+        # If Vocalinux is idle in the background holding dGPU VRAM, stop it so GPU can enter D3cold
+        if pgrep -f "vocalinux.main" >/dev/null 2>&1; then
+            if [[ ! -f "/run/user/$(id -u)/vocalinux_recording" ]]; then
+                pkill -f "vocalinux.main" >/dev/null 2>&1
+            fi
+        fi
+        notify-send -u low -i energy_savings_leaf "Power Mode: Eco" "Power-Saver active (CPU throttled, dGPU sleep)" -a "Caelestia" 2>/dev/null
+        ;;
+
+    balanced)
+        powerprofilesctl set balanced >/dev/null 2>&1
+        if [[ -w /sys/bus/pci/devices/0000:01:00.0/power/control ]]; then
+            echo auto > /sys/bus/pci/devices/0000:01:00.0/power/control 2>/dev/null
+        fi
+        notify-send -u low -i balance "Power Mode: Balanced" "Balanced performance active" -a "Caelestia" 2>/dev/null
+        ;;
+
+    performance|perf)
+        powerprofilesctl set performance >/dev/null 2>&1
+        notify-send -u low -i rocket_launch "Power Mode: Performance" "Performance active (RTX 3050 & CPU unleashed)" -a "Caelestia" 2>/dev/null
+        ;;
+
+    status)
+        powerprofilesctl get 2>/dev/null || echo "balanced"
+        exit 0
+        ;;
+esac
+

@@ -42,12 +42,14 @@ Scope {
                 return;
 
             if (UPower.onBattery) {
-                if (GlobalConfig.utilities.toasts.chargingChanged)
-                    Toaster.toast(qsTr("Charger unplugged"), qsTr("Battery is discharging"), "power_off");
+                PowerProfiles.profile = PowerProfile.PowerSaver;
+                Quickshell.execDetached(["/home/sidlakhani/.local/bin/power-profile-switch", "power-saver"]);
+                Toaster.toast(qsTr("Battery Discharging"), qsTr("Switched to Power Saver (CPU eco, dGPU sleep)"), "energy_savings_leaf");
                 root.handleBatteryWarnings();
             } else {
-                if (GlobalConfig.utilities.toasts.chargingChanged)
-                    Toaster.toast(qsTr("Charger plugged in"), qsTr("Battery is charging"), "power");
+                PowerProfiles.profile = PowerProfile.Performance;
+                Quickshell.execDetached(["/home/sidlakhani/.local/bin/power-profile-switch", "performance"]);
+                Toaster.toast(qsTr("Charger Connected"), qsTr("Switched to Performance Mode (RTX 3050 unleashed)"), "rocket_launch");
                 root.lastPercentage = 100;
             }
         }

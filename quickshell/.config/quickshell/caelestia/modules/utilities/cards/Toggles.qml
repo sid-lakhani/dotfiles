@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
+import Quickshell.Services.UPower
 import Caelestia.Components
 import Caelestia.Config
 import qs.components
@@ -32,6 +33,7 @@ StyledRect {
         const list = [];
         let hasDarkMode = false;
         let hasVoice = false;
+        let hasSettings = false;
 
         for (const item of Config.utilities.quickToggles.values) {
             if (!item.enabled || seenIds.has(item.id))
@@ -40,25 +42,34 @@ StyledRect {
             if (item.id === "vpn" && GlobalConfig.utilities.vpn.selectedProvider.length === 0)
                 continue;
 
-            if (item.id === "darkMode") {
+            if (item.id === "darkMode")
                 hasDarkMode = true;
-            }
-            if (item.id === "voice") {
+            if (item.id === "voice")
                 hasVoice = true;
-            }
+            if (item.id === "settings")
+                hasSettings = true;
 
             seenIds.add(item.id);
             list.push(item);
         }
 
-        // Add Dark / Light mode toggle if not already explicitly in list
+        // Add Dark / Light mode toggle if not already explicitly in list (row 1, 4th item)
         if (!hasDarkMode) {
             const micIdx = list.findIndex(item => item.id === "mic");
             const insertIdx = micIdx !== -1 ? micIdx + 1 : Math.min(3, list.length);
             list.splice(insertIdx, 0, { id: "darkMode", enabled: true });
         }
 
-        // Add Voice dictation toggle if not already explicitly in list
+        // Ensure settings (gear icon) is present at the start of row 2
+        if (!hasSettings) {
+            const gmIdx = list.findIndex(item => item.id === "gameMode");
+            if (gmIdx !== -1)
+                list.splice(gmIdx, 0, { id: "settings", enabled: true });
+            else
+                list.push({ id: "settings", enabled: true });
+        }
+
+        // Add Voice dictation toggle if not already explicitly in list (row 2, 4th item)
         if (!hasVoice) {
             list.push({ id: "voice", enabled: true });
         }
@@ -110,6 +121,106 @@ StyledRect {
             QuickToggleRow {
                 required property var modelData
                 model: modelData
+            }
+        }
+
+        StyledRect {
+            id: profilesSlider
+
+            Layout.fillWidth: true
+            Layout.topMargin: Tokens.spacing.extraSmall
+            implicitHeight: 44
+
+            property string current: {
+                const p = PowerProfiles.profile;
+                if (p === PowerProfile.PowerSaver)
+                    return saver.icon;
+                if (p === PowerProfile.Performance)
+                    return perf.icon;
+                return balance.icon;
+            }
+
+            color: Colours.layer(Colours.palette.m3surfaceContainerHighest, 1)
+            radius: Tokens.rounding.full
+
+            StyledRect {
+                id: sliderIndicator
+
+                anchors.topMargin: Tokens.padding.extraSmall
+                anchors.bottomMargin: Tokens.padding.extraSmall
+                anchors.leftMargin: Tokens.padding.extraSmall
+                anchors.rightMargin: Tokens.padding.extraSmall
+
+                color: Colours.palette.m3primary
+                radius: Tokens.rounding.full
+                state: profilesSlider.current
+
+                states: [
+                    State {
+                        name: saver.icon
+
+                        Fill {
+                            item: saver
+                        }
+                    },
+                    State {
+                        name: balance.icon
+
+                        Fill {
+                            item: balance
+                        }
+                    },
+                    State {
+                        name: perf.icon
+
+                        Fill {
+                            item: perf
+                        }
+                    }
+                ]
+
+                transitions: Transition {
+                    AnchorAnim {}
+                }
+            }
+
+            ProfileBtn {
+                id: saver
+
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: parent.width / 3
+
+                profile: PowerProfile.PowerSaver
+                profileName: "power-saver"
+                icon: "energy_savings_leaf"
+            }
+
+            ProfileBtn {
+                id: balance
+
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: parent.width / 3
+
+                profile: PowerProfile.Balanced
+                profileName: "balanced"
+                icon: "balance"
+            }
+
+            ProfileBtn {
+                id: perf
+
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: parent.width / 3
+
+                profile: PowerProfile.Performance
+                profileName: "performance"
+                icon: "rocket_launch"
             }
         }
     }
@@ -221,6 +332,53 @@ StyledRect {
                         property bool fillWidth: true
                         implicitHeight: 1
                     }
+                }
+            }
+        }
+    }
+
+    component Fill: AnchorChanges {
+        required property Item item
+
+        target: sliderIndicator
+        anchors.left: item.left
+        anchors.right: item.right
+        anchors.top: item.top
+        anchors.bottom: item.bottom
+    }
+
+    component ProfileBtn: Item {
+        id: profBtn
+
+        required property string icon
+        required property int profile
+        required property string profileName
+
+        implicitWidth: iconWidget.implicitHeight + Tokens.padding.small
+        implicitHeight: iconWidget.implicitHeight + Tokens.padding.small
+
+        StateLayer {
+            radius: Tokens.rounding.full
+            color: profilesSlider.current === parent.icon ? Colours.palette.m3onPrimary : Colours.palette.m3onSurface
+            onClicked: {
+                PowerProfiles.profile = parent.profile;
+                Quickshell.execDetached(["/home/sidlakhani/.local/bin/power-profile-switch", parent.profileName]);
+            }
+        }
+
+        MaterialIcon {
+            id: iconWidget
+
+            anchors.centerIn: parent
+
+            text: profBtn.icon
+            fontStyle: Tokens.font.icon.large
+            color: profilesSlider.current === text ? Colours.palette.m3onPrimary : Colours.palette.m3onSurfaceVariant
+            fill: profilesSlider.current === text ? 1 : 0
+
+            Behavior on fill {
+                Anim {
+                    type: Anim.DefaultEffects
                 }
             }
         }
