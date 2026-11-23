@@ -156,6 +156,7 @@ create_bind(vars.kbSystemMonitorWs, fn.toggle("sysmon"))
 create_bind(vars.kbMusicWs, fn.toggle("music"))
 create_bind(vars.kbCommunicationWs, fn.toggle("communication"))
 create_bind(vars.kbTodoWs, fn.toggle("todo"))
+create_bind(vars.kbGame, fn.toggle("game"))
 
 -- Apps
 create_bind(vars.kbTerminal, hl.dsp.exec_cmd(vars.terminal))

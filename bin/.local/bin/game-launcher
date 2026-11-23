@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# game-launcher — Unified GBA & NDS Game Picker, Save Shield & Hyprland Workspace Controller
+
+GAMES_DIR="$HOME/games"
+GBA_DIR="$GAMES_DIR/gba"
+NDS_DIR="$GAMES_DIR/nds"
+
+# 1. Check if any emulator is already running in Hyprland
+# If so, simply toggle the special:game workspace in and out of view
+if command -v hyprctl >/dev/null 2>&1; then
+    RUNNING=$(hyprctl clients -j 2>/dev/null | grep -iE '"class":\s*"(mGBA|mgba|io\.mgba\.mGBA|melonDS|melonds)"')
+    if [[ -n "$RUNNING" ]]; then
+        if command -v caelestia >/dev/null 2>&1; then
+            exec caelestia toggle game
+        else
+            exec hyprctl dispatch togglespecialworkspace game
+        fi
+    fi
+fi
+
+# 2. Automated Save Protection: Backup all .sav files before starting any game
+backup_saves() {
+    local save_dir="$1"
+    local backup_dir="$save_dir/backups"
+    if [[ -d "$save_dir" ]]; then
+        mkdir -p "$backup_dir"
+        local ts
+        ts=$(date +'%Y-%m-%d_%H-%M-%S')
+        for sav in "$save_dir"/*.sav; do
+            if [[ -f "$sav" ]]; then
+                local base
+                base=$(basename "$sav")
+                cp "$sav" "$backup_dir/${base%.sav}_${ts}.sav" 2>/dev/null
+            fi
+        done
+        # Keep latest 30 backups
+        find "$backup_dir" -type f -name "*.sav" | sort | head -n -30 | xargs -r rm -f 2>/dev/null
+    fi
+}
+
+backup_saves "$GBA_DIR/saves"
+backup_saves "$NDS_DIR/saves"
+backup_saves "$NDS_DIR/roms"
+
+# 3. Build dynamic list of ROMs
+declare -A GAME_MAP
+MENU_ITEMS=""
+
+# Scan NDS ROMs
+if [[ -d "$NDS_DIR/roms" ]]; then
+    for rom in "$NDS_DIR/roms"/*.nds; do
+        if [[ -f "$rom" ]]; then
+            filename=$(basename "$rom" .nds)
+            display_name=$(echo "$filename" | sed -E 's/_/ /g; s/\bv[0-9].*//; s/ +$//')
+            label="🎮  ${display_name}  [NDS]"
+            GAME_MAP["$label"]="nds:$rom"
+            MENU_ITEMS+="${label}\n"
+        fi
+    done
+fi
+
+# Scan GBA ROMs
+if [[ -d "$GBA_DIR/roms" ]]; then
+    for rom in "$GBA_DIR/roms"/*.gba; do
+        if [[ -f "$rom" ]]; then
+            filename=$(basename "$rom" .gba)
+            display_name=$(echo "$filename" | sed -E 's/^[0-9]+ - //; s/\(.*\)//g; s/ +$//')
+            label="🎮  ${display_name}  [GBA]"
+            GAME_MAP["$label"]="gba:$rom"
+            MENU_ITEMS+="${label}\n"
+        fi
+    done
+fi
+
+# Standalone emulator entries
+MENU_ITEMS+="🕹️   mGBA (Empty / Open GUI)\n"
+GAME_MAP["🕹️   mGBA (Empty / Open GUI)"]="app:mgba"
+
+MENU_ITEMS+="🕹️   melonDS (Empty / Open GUI)\n"
+GAME_MAP["🕹️   melonDS (Empty / Open GUI)"]="app:melonds"
+
+# 4. Prompt user via Fuzzel
+SELECTED=$(printf "%b" "$MENU_ITEMS" | sed '/^$/d' | fuzzel --dmenu --prompt "Play Game 󰮯  " -l 8 -w 45)
+
+if [[ -z "$SELECTED" ]]; then
+    exit 0
+fi
+
+TARGET="${GAME_MAP["$SELECTED"]}"
+
+if [[ -z "$TARGET" ]]; then
+    exit 0
+fi
+
+# 5. Launch the selected game into special:game
+TYPE="${TARGET%%:*}"
+PATH_OR_CMD="${TARGET#*:}"
+
+# Ensure special:game is open in Hyprland
+if command -v hyprctl >/dev/null 2>&1; then
+    IS_OPEN=$(hyprctl monitors -j 2>/dev/null | jq -r '.[].specialWorkspace.name' 2>/dev/null | grep -F "special:game")
+    if [[ -z "$IS_OPEN" ]]; then
+        hyprctl dispatch togglespecialworkspace game >/dev/null 2>&1
+    fi
+fi
+
+case "$TYPE" in
+    gba)
+        exec "$HOME/.local/bin/mgba" "$PATH_OR_CMD"
+        ;;
+    nds)
+        exec "$HOME/.local/bin/melonds" "$PATH_OR_CMD"
+        ;;
+    app)
+        exec "$HOME/.local/bin/$PATH_OR_CMD"
+        ;;
+esac
+

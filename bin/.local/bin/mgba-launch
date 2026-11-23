@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# mgba-launch — Launch mGBA with automatic save safety backups and focus management
+
+GBA_DIR="$HOME/games/gba"
+SAVES_DIR="$GBA_DIR/saves"
+BACKUP_DIR="$SAVES_DIR/backups"
+
+# 1. Automatic Save Safety: Backup existing .sav files with timestamps before launching
+if [[ -d "$SAVES_DIR" ]]; then
+    mkdir -p "$BACKUP_DIR"
+    TIMESTAMP=$(date +'%Y-%m-%d_%H-%M-%S')
+    for sav in "$SAVES_DIR"/*.sav; do
+        if [[ -f "$sav" ]]; then
+            base=$(basename "$sav")
+            cp "$sav" "$BACKUP_DIR/${base%.sav}_${TIMESTAMP}.sav"
+        fi
+    done
+    # Keep only the last 30 backups to avoid clutter
+    find "$BACKUP_DIR" -type f -name "*.sav" | sort | head -n -30 | xargs -r rm -f
+fi
+
+# 2. Focus existing mGBA instance if already open in Hyprland
+if command -v hyprctl >/dev/null 2>&1; then
+    if hyprctl clients -j 2>/dev/null | grep -iE '"class":\s*"(mGBA|mgba|io\.mgba\.mGBA)"' >/dev/null 2>&1; then
+        hyprctl dispatch focuswindow "class:^(mGBA|mgba|io\.mgba\.mGBA)$" >/dev/null 2>&1
+        exit 0
+    fi
+fi
+
+# 3. Launch mGBA AppImage or binary
+if [[ -x "$HOME/Applications/mgba_daa02691bab2810686acd46e1e42e8c3.AppImage" ]]; then
+    exec "$HOME/Applications/mgba_daa02691bab2810686acd46e1e42e8c3.AppImage" "$@"
+elif command -v mgba >/dev/null 2>&1; then
+    exec mgba "$@"
+elif command -v mgba-qt >/dev/null 2>&1; then
+    exec mgba-qt "$@"
+fi
+

@@ -119,6 +119,20 @@ local function default_config()
         todo = {
             todoist = { enable = true, match = { { class = "todoist" } }, command = { "todoist" }, move = true },
         },
+        game = {
+            launcher = {
+                enable  = true,
+                match   = {
+                    { class = "mGBA" },
+                    { class = "mgba" },
+                    { class = "io.mgba.mGBA" },
+                    { class = "melonDS" },
+                    { class = "melonds" },
+                },
+                command = { "game-launcher" },
+                move    = true,
+            },
+        },
     }
 end
 

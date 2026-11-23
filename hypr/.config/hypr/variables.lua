@@ -120,6 +120,7 @@ return {
     kbBrowser                  = "SUPER + W",
     kbEditor                   = "SUPER + C",
     kbAntigravity              = "SUPER + A",
+    kbGame                     = "SUPER + G",
     kbFileExplorer             = "SUPER + E",
     kbAudioSettings            = "CTRL + ALT + V",
 
