@@ -1,5 +1,16 @@
 {
     "toggles": {
+        "music": {
+            "uzumaki": {
+                "enable": true,
+                "match": [
+                    { "class": "io.github.hanami117.uzumaki" },
+                    { "class": "uzumaki" }
+                ],
+                "command": ["uzumaki"],
+                "move": true
+            }
+        },
         "game": {
             "launcher": {
                 "enable": true,

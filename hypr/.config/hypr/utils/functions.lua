@@ -101,13 +101,12 @@ local function default_config()
             whatsapp = { enable = true, match = { { class = "whatsapp" } }, move = true },
         },
         music = {
-            spotify = {
+            uzumaki = {
                 enable  = true,
-                match   = { { class = "Spotify" }, { initial_title = "Spotify" }, { initial_title = "Spotify Free" } },
-                command = { "spicetify", "watch", "-s" },
+                match   = { { class = "io.github.hanami117.uzumaki" }, { class = "uzumaki" } },
+                command = { "uzumaki" },
                 move    = true,
             },
-            feishin = { enable = true, match = { { class = "feishin" } }, move = true },
         },
         sysmon = {
             btop = {

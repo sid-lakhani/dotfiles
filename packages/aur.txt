@@ -1,2 +1,3 @@
 mpvpaper
 quickshell-git
+uzumaki-bin
