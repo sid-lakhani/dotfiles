@@ -21,6 +21,7 @@ neovim
 pipewire
 playerctl
 polkit-gnome
+rclone
 slurp
 stow
 thunar

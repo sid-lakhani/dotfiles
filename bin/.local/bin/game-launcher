@@ -42,7 +42,12 @@ backup_saves "$GBA_DIR/saves"
 backup_saves "$NDS_DIR/saves"
 backup_saves "$NDS_DIR/roms"
 
-# 3. Build dynamic list of ROMs
+# 3. Pull latest cloud saves in background before game selection
+if command -v game-sync >/dev/null 2>&1; then
+    game-sync pull &
+fi
+
+# 4. Build dynamic list of ROMs
 declare -A GAME_MAP
 MENU_ITEMS=""
 
@@ -106,13 +111,20 @@ fi
 
 case "$TYPE" in
     gba)
-        exec "$HOME/.local/bin/mgba" "$PATH_OR_CMD"
+        wait # Wait for background pull to finish before launching
+        "$HOME/.local/bin/mgba" "$PATH_OR_CMD"
         ;;
     nds)
-        exec "$HOME/.local/bin/melonds" "$PATH_OR_CMD"
+        wait
+        "$HOME/.local/bin/melonds" "$PATH_OR_CMD"
         ;;
     app)
-        exec "$HOME/.local/bin/$PATH_OR_CMD"
+        "$HOME/.local/bin/$PATH_OR_CMD"
         ;;
 esac
+
+# 6. Push updated saves to Cloud after game session ends
+if command -v game-sync >/dev/null 2>&1; then
+    game-sync push
+fi
 
