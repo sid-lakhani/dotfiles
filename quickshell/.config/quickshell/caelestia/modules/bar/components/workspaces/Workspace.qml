@@ -40,9 +40,10 @@ ColumnLayout {
             const ws = Hypr.workspaces.values.find(w => w.id === root.ws);
             const wsName = !ws || ws.name == root.ws ? root.ws : ws.name[0];
             let displayName = wsName.toString();
-            if (Config.bar.workspaces.capitalisation.toLowerCase() === "upper") {
+            const capitalisation = Config.bar.workspaces.capitalisation;
+            if (capitalisation === BarWorkspaceCapitalisation.Upper) {
                 displayName = displayName.toUpperCase();
-            } else if (Config.bar.workspaces.capitalisation.toLowerCase() === "lower") {
+            } else if (capitalisation === BarWorkspaceCapitalisation.Lower) {
                 displayName = displayName.toLowerCase();
             }
             const label = Config.bar.workspaces.label || displayName;

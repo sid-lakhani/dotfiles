@@ -5,8 +5,8 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
 import Caelestia
+import Caelestia.Services
 import Caelestia.Config
-import Caelestia.Internal
 import qs.components.misc
 
 Singleton {

@@ -4,7 +4,8 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Caelestia.Config
-import Caelestia.Internal
+import Caelestia
+import Caelestia.Services
 
 Singleton {
     id: root
