@@ -33,7 +33,6 @@ local system_monitor_tag = "system_monitor"
 local music_player_tag = "music_player"
 local communication_app_tag = "communication_app"
 local todo_app_tag = "todo_app"
-local game_special_tag = "game_special"
 
 
 ----------------------
@@ -122,7 +121,6 @@ tagged_rule(game_tag, {
     "steam_app_[0-9]+",  -- Steam games
     "steam_app_default", -- Lutris games
     "gamescope",         -- Gamescope
-    "mGBA|mgba|melonDS|melonds", -- Emulators
 }, "class")
 
 
@@ -150,9 +148,6 @@ tagged_rule(communication_app_tag, {
 }, "class")
 tagged_rule(todo_app_tag, {
     "todoist" -- Todoist
-}, "class")
-tagged_rule(game_special_tag, {
-    "mGBA|mgba|io.mgba.mGBA|melonDS|melonds", -- Emulators
 }, "class")
 
 
@@ -199,7 +194,6 @@ create_tag(system_monitor_tag, { workspace = "special:sysmon" })
 create_tag(music_player_tag, { workspace = "special:music" })
 create_tag(communication_app_tag, { workspace = "special:communication" })
 create_tag(todo_app_tag, { workspace = "special:todo" })
-create_tag(game_special_tag, { workspace = "special:game" })
 
 
 -------------------------

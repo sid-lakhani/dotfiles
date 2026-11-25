@@ -10,20 +10,6 @@
                 "command": ["uzumaki"],
                 "move": true
             }
-        },
-        "game": {
-            "launcher": {
-                "enable": true,
-                "match": [
-                    { "class": "mGBA" },
-                    { "class": "mgba" },
-                    { "class": "io.mgba.mGBA" },
-                    { "class": "melonDS" },
-                    { "class": "melonds" }
-                ],
-                "command": ["game-launcher"],
-                "move": true
-            }
         }
     }
 }
