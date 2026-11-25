@@ -7,11 +7,32 @@
     "background": {
         "wallpaperEnabled": true
     },
+    "bar": {
+        "activeWindow": {
+            "compact": false
+        },
+        "persistent": true,
+        "popouts": {
+            "activeWindow": true
+        },
+        "showOnHover": true,
+        "workspaces": {
+            "activeIndicator": true,
+            "activeTrail": true,
+            "maxWindowIcons": 5,
+            "occupiedBg": false,
+            "showWindows": true,
+            "shown": 5
+        }
+    },
     "paths": {
         "wallpaperDir": "~/pix/wall"
     },
     "services": {
         "useFahrenheit": false,
         "useFahrenheitPerformance": false
+    },
+    "sidebar": {
+        "enabled": true
     }
 }
